@@ -3,41 +3,39 @@ name: Build Plugin
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
+  workflow_dispatch:   # 允许手动触发
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build-linux:
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    - name: Build
+    # 关键步骤：优化 Git 配置并清理缓存
+    - name: Prepare environment
       run: |
-        xmake f -m release
-        xmake
+        git config --global http.postBuffer 524288000
+        git config --global http.lowSpeedLimit 0
+        git config --global http.lowSpeedTime 999999
+        # 清理可能损坏的 xmake 缓存
+        rm -rf ~/.xmake
 
-    - name: Upload DLL
-      uses: actions/upload-artifact@v4
-      with:
-        name: WebPanel-Windows
-        path: build/windows/x64/release/WebPanel.dll
-
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: xmake-io/github-action-setup-xmake@v1
-
-    - name: Build
+    - name: Build plugin
       run: |
-        xmake f -m release
-        xmake
+        # 使用重试机制，最多尝试 5 次
+        for i in {1..5}; do
+          xmake f -m release -y && break
+          echo "Build failed, retrying in 10 seconds... ($i/5)"
+          sleep 10
+        done
+        xmake -y
 
-    - name: Upload SO
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: WebPanel-Linux
-        path: build/linux/x86_64/release/WebPanel.so
+        path: build/linux/x86_64/release/libWebPanel.so   # 注意：Linux 下默认输出可能带有 'lib' 前缀
