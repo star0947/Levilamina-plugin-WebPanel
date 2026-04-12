@@ -15,16 +15,15 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    - name: Get latest LeviLamina SDK download URL (Windows)
-      id: get-url-win
-      run: |
-        $url = (Invoke-RestMethod -Uri "https://api.github.com/repos/LiteLDev/LeviLamina/releases/latest").assets | Where-Object { $_.name -like "*windows*x64*.zip" } | Select-Object -First 1 -ExpandProperty browser_download_url
-        echo "url=$url" >> $env:GITHUB_OUTPUT
-
-    - name: Download SDK
-      run: |
-        curl -L -o sdk.zip "${{ steps.get-url-win.outputs.url }}"
-        7z x sdk.zip -o./sdk
+    # 🎯 使用专用 Action 自动下载并解压 Windows SDK
+    - name: Download & Extract LeviLamina SDK (Windows)
+      uses: robinraju/release-downloader@v1.12
+      with:
+        repository: "LiteLDev/LeviLamina"
+        latest: true
+        fileName: "*-windows-x64*.zip"
+        out-file-path: "sdk"
+        extract: true
 
     - name: Configure and Build
       run: |
@@ -46,17 +45,15 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    - name: Get latest LeviLamina SDK download URL (Linux)
-      id: get-url-linux
-      run: |
-        URL=$(curl -s https://api.github.com/repos/LiteLDev/LeviLamina/releases/latest | jq -r '.assets[] | select(.name | contains("linux") and endswith(".tar.xz")) | .browser_download_url')
-        echo "url=$URL" >> $GITHUB_OUTPUT
-
-    - name: Download SDK
-      run: |
-        curl -L -o sdk.tar.xz "${{ steps.get-url-linux.outputs.url }}"
-        mkdir sdk
-        tar -xf sdk.tar.xz -C sdk
+    # 🎯 使用专用 Action 自动下载并解压 Linux SDK
+    - name: Download & Extract LeviLamina SDK (Linux)
+      uses: robinraju/release-downloader@v1.12
+      with:
+        repository: "LiteLDev/LeviLamina"
+        latest: true
+        fileName: "*-linux-x64*.tar.xz"
+        out-file-path: "sdk"
+        extract: true
 
     - name: Configure and Build
       run: |
