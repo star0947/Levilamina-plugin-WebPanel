@@ -3,39 +3,70 @@ name: Build Plugin
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   # 允许手动触发
+  workflow_dispatch:
+
+env:
+  XMAKE_GLOBALDIR: ${{ github.workspace }}/.xmake-global
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    # 关键步骤：优化 Git 配置并清理缓存
-    - name: Prepare environment
+    - name: Configure Git for Actions (Windows)
       run: |
+        git config --global http.sslVerify false
         git config --global http.postBuffer 524288000
-        git config --global http.lowSpeedLimit 0
-        git config --global http.lowSpeedTime 999999
-        # 清理可能损坏的 xmake 缓存
-        rm -rf ~/.xmake
+        git config --global url."https://github.com/".insteadOf git@github.com:
 
-    - name: Build plugin
+    - name: Configure xmake to retry
       run: |
-        # 使用重试机制，最多尝试 5 次
-        for i in {1..5}; do
-          xmake f -m release -y && break
-          echo "Build failed, retrying in 10 seconds... ($i/5)"
-          sleep 10
-        done
+        xmake g --network=public
+        xmake g --proxy=
+
+    - name: Clean cache and build
+      run: |
+        xmake f -c
+        xmake f -m release -y
         xmake -y
 
-    - name: Upload artifact
+    - name: Upload DLL
+      uses: actions/upload-artifact@v4
+      with:
+        name: WebPanel-Windows
+        path: build/windows/x64/release/WebPanel.dll
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+
+    - name: Configure Git for Actions (Linux)
+      run: |
+        git config --global http.sslVerify false
+        git config --global http.postBuffer 524288000
+        git config --global url."https://github.com/".insteadOf git@github.com:
+
+    - name: Configure xmake to retry
+      run: |
+        xmake g --network=public
+        xmake g --proxy=
+
+    - name: Clean cache and build
+      run: |
+        xmake f -c
+        xmake f -m release -y
+        xmake -y
+
+    - name: Upload SO
       uses: actions/upload-artifact@v4
       with:
         name: WebPanel-Linux
-        path: build/linux/x86_64/release/libWebPanel.so   # 注意：Linux 下默认输出可能带有 'lib' 前缀
+        path: build/linux/x86_64/release/WebPanel.so
