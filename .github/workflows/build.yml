@@ -1,0 +1,43 @@
+name: Build Plugin
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+
+    - name: Build
+      run: |
+        xmake f -m release
+        xmake
+
+    - name: Upload DLL
+      uses: actions/upload-artifact@v4
+      with:
+        name: WebPanel-Windows
+        path: build/windows/x64/release/WebPanel.dll
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: xmake-io/github-action-setup-xmake@v1
+
+    - name: Build
+      run: |
+        xmake f -m release
+        xmake
+
+    - name: Upload SO
+      uses: actions/upload-artifact@v4
+      with:
+        name: WebPanel-Linux
+        path: build/linux/x86_64/release/WebPanel.so
