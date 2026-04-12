@@ -3,19 +3,11 @@ name: Build WebPanel Plugin
 on:
   push:
     branches: [ "main" ]
-<<<<<<< HEAD
-  workflow_dispatch:  # 允许手动触发
-=======
   workflow_dispatch:
-
-env:
-  XMAKE_GLOBALDIR: ${{ github.workspace }}/.xmake-global
->>>>>>> aafba6da16c5f40bea4e9e13adc8f7f0c5c01758
 
 jobs:
   build-windows:
     runs-on: windows-latest
-<<<<<<< HEAD
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -23,10 +15,16 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    - name: Download LeviLamina SDK (Windows)
+    - name: Get latest LeviLamina SDK download URL (Windows)
+      id: get-url-win
       run: |
-        curl -L -o levilamina-sdk.zip https://github.com/LiteLDev/LeviLamina/releases/download/26.10.6/levilamina-sdk-windows-x64.zip
-        7z x levilamina-sdk.zip -o./sdk
+        $url = (Invoke-RestMethod -Uri "https://api.github.com/repos/LiteLDev/LeviLamina/releases/latest").assets | Where-Object { $_.name -like "*windows*x64*.zip" } | Select-Object -First 1 -ExpandProperty browser_download_url
+        echo "url=$url" >> $env:GITHUB_OUTPUT
+
+    - name: Download SDK
+      run: |
+        curl -L -o sdk.zip "${{ steps.get-url-win.outputs.url }}"
+        7z x sdk.zip -o./sdk
 
     - name: Configure and Build
       run: |
@@ -41,20 +39,24 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
-=======
->>>>>>> aafba6da16c5f40bea4e9e13adc8f7f0c5c01758
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-<<<<<<< HEAD
-    - name: Download LeviLamina SDK (Linux)
+    - name: Get latest LeviLamina SDK download URL (Linux)
+      id: get-url-linux
       run: |
-        curl -L -o levilamina-sdk.tar.xz https://github.com/LiteLDev/LeviLamina/releases/download/26.10.6/levilamina-sdk-linux-x64.tar.xz
+        URL=$(curl -s https://api.github.com/repos/LiteLDev/LeviLamina/releases/latest | jq -r '.assets[] | select(.name | contains("linux") and endswith(".tar.xz")) | .browser_download_url')
+        echo "url=$URL" >> $GITHUB_OUTPUT
+
+    - name: Download SDK
+      run: |
+        curl -L -o sdk.tar.xz "${{ steps.get-url-linux.outputs.url }}"
         mkdir sdk
-        tar -xf levilamina-sdk.tar.xz -C sdk
+        tar -xf sdk.tar.xz -C sdk
 
     - name: Configure and Build
       run: |
@@ -66,58 +68,3 @@ jobs:
       with:
         name: WebPanel-Linux
         path: build/linux/x86_64/release/libWebPanel.so
-=======
-    - name: Configure Git for Actions (Windows)
-      run: |
-        git config --global http.sslVerify false
-        git config --global http.postBuffer 524288000
-        git config --global url."https://github.com/".insteadOf git@github.com:
-
-    - name: Configure xmake to retry
-      run: |
-        xmake g --network=public
-        xmake g --proxy=
-
-    - name: Clean cache and build
-      run: |
-        xmake f -c
-        xmake f -m release -y
-        xmake -y
-
-    - name: Upload DLL
-      uses: actions/upload-artifact@v4
-      with:
-        name: WebPanel-Windows
-        path: build/windows/x64/release/WebPanel.dll
-
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup xmake
-      uses: xmake-io/github-action-setup-xmake@v1
-
-    - name: Configure Git for Actions (Linux)
-      run: |
-        git config --global http.sslVerify false
-        git config --global http.postBuffer 524288000
-        git config --global url."https://github.com/".insteadOf git@github.com:
-
-    - name: Configure xmake to retry
-      run: |
-        xmake g --network=public
-        xmake g --proxy=
-
-    - name: Clean cache and build
-      run: |
-        xmake f -c
-        xmake f -m release -y
-        xmake -y
-
-    - name: Upload SO
-      uses: actions/upload-artifact@v4
-      with:
-        name: WebPanel-Linux
-        path: build/linux/x86_64/release/WebPanel.so
->>>>>>> aafba6da16c5f40bea4e9e13adc8f7f0c5c01758
