@@ -3,19 +3,11 @@ name: Build WebPanel Plugin
 on:
   push:
     branches: [ "main" ]
-<<<<<<< HEAD
   workflow_dispatch:  # 允许手动触发
-=======
-  workflow_dispatch:
-
-env:
-  XMAKE_GLOBALDIR: ${{ github.workspace }}/.xmake-global
->>>>>>> aafba6da16c5f40bea4e9e13adc8f7f0c5c01758
 
 jobs:
   build-windows:
     runs-on: windows-latest
-<<<<<<< HEAD
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -41,15 +33,13 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
-=======
->>>>>>> aafba6da16c5f40bea4e9e13adc8f7f0c5c01758
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-<<<<<<< HEAD
     - name: Download LeviLamina SDK (Linux)
       run: |
         curl -L -o levilamina-sdk.tar.xz https://github.com/LiteLDev/LeviLamina/releases/download/26.10.6/levilamina-sdk-linux-x64.tar.xz
@@ -66,58 +56,3 @@ jobs:
       with:
         name: WebPanel-Linux
         path: build/linux/x86_64/release/libWebPanel.so
-=======
-    - name: Configure Git for Actions (Windows)
-      run: |
-        git config --global http.sslVerify false
-        git config --global http.postBuffer 524288000
-        git config --global url."https://github.com/".insteadOf git@github.com:
-
-    - name: Configure xmake to retry
-      run: |
-        xmake g --network=public
-        xmake g --proxy=
-
-    - name: Clean cache and build
-      run: |
-        xmake f -c
-        xmake f -m release -y
-        xmake -y
-
-    - name: Upload DLL
-      uses: actions/upload-artifact@v4
-      with:
-        name: WebPanel-Windows
-        path: build/windows/x64/release/WebPanel.dll
-
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup xmake
-      uses: xmake-io/github-action-setup-xmake@v1
-
-    - name: Configure Git for Actions (Linux)
-      run: |
-        git config --global http.sslVerify false
-        git config --global http.postBuffer 524288000
-        git config --global url."https://github.com/".insteadOf git@github.com:
-
-    - name: Configure xmake to retry
-      run: |
-        xmake g --network=public
-        xmake g --proxy=
-
-    - name: Clean cache and build
-      run: |
-        xmake f -c
-        xmake f -m release -y
-        xmake -y
-
-    - name: Upload SO
-      uses: actions/upload-artifact@v4
-      with:
-        name: WebPanel-Linux
-        path: build/linux/x86_64/release/WebPanel.so
->>>>>>> aafba6da16c5f40bea4e9e13adc8f7f0c5c01758
