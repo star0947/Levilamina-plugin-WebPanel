@@ -1,11 +1,36 @@
-name: Build Plugin
+name: Build WebPanel Plugin
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   # 允许手动触发
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+
+    - name: Download LeviLamina SDK (Windows)
+      run: |
+        curl -L -o levilamina-sdk.zip https://github.com/LiteLDev/LeviLamina/releases/download/26.10.6/levilamina-sdk-windows-x64.zip
+        7z x levilamina-sdk.zip -o./sdk
+
+    - name: Configure and Build
+      run: |
+        xmake f -m release --sdk=./sdk
+        xmake
+
+    - name: Upload DLL artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: WebPanel-Windows
+        path: build/windows/x64/release/WebPanel.dll
+
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -15,27 +40,19 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    # 关键步骤：优化 Git 配置并清理缓存
-    - name: Prepare environment
+    - name: Download LeviLamina SDK (Linux)
       run: |
-        git config --global http.postBuffer 524288000
-        git config --global http.lowSpeedLimit 0
-        git config --global http.lowSpeedTime 999999
-        # 清理可能损坏的 xmake 缓存
-        rm -rf ~/.xmake
+        curl -L -o levilamina-sdk.tar.xz https://github.com/LiteLDev/LeviLamina/releases/download/26.10.6/levilamina-sdk-linux-x64.tar.xz
+        mkdir sdk
+        tar -xf levilamina-sdk.tar.xz -C sdk
 
-    - name: Build plugin
+    - name: Configure and Build
       run: |
-        # 使用重试机制，最多尝试 5 次
-        for i in {1..5}; do
-          xmake f -m release -y && break
-          echo "Build failed, retrying in 10 seconds... ($i/5)"
-          sleep 10
-        done
-        xmake -y
+        xmake f -m release --sdk=./sdk
+        xmake
 
-    - name: Upload artifact
+    - name: Upload SO artifact
       uses: actions/upload-artifact@v4
       with:
         name: WebPanel-Linux
-        path: build/linux/x86_64/release/libWebPanel.so   # 注意：Linux 下默认输出可能带有 'lib' 前缀
+        path: build/linux/x86_64/release/libWebPanel.so
