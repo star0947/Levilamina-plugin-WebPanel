@@ -1,0 +1,6 @@
+{
+    levilamina = {
+        __requirestr = "levilamina",
+        __enabled = false
+    }
+}
