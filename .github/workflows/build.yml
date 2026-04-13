@@ -12,9 +12,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install xmake (via official script)
+    - name: Download and install xmake
       run: |
-        Invoke-Expression (Invoke-Webrequest 'https://xmake.io/psget.text' -UseBasicParsing).Content
+        $url = "https://github.com/xmake-io/xmake/releases/latest/download/xmake-v3.0.8.win64.exe"
+        $installer = "$env:TEMP\xmake-installer.exe"
+        Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+        Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
+
+    - name: Add xmake to PATH
+      run: |
+        echo "C:\Program Files\xmake" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Verify xmake
+      run: xmake --version
 
     - name: Build plugin
       run: |
