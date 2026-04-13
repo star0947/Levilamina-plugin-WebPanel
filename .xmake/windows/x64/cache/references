@@ -1,3 +1,6 @@
 {
-    packages = { }
+    packages = {
+        [[C:\Users\star\AppData\Local\.xmake\packages\n\ninja\v1.13.1\fd5a0995dca64146a4f4c4dbff879aad]],
+        [[C:\Users\star\AppData\Local\.xmake\packages\c\cmake\4.2.3\674adf9609f646bc9f678b5e946b080a]]
+    }
 }

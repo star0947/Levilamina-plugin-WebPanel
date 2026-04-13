@@ -1,10 +1,8 @@
 {
-    "entry": "webpanel.js",
     "name": "WebPanel",
-    "type": "lse-quickjs",
-    "dependencies": [
-        {
-            "name": "legacy-script-engine-quickjs"
-        }
-    ]
+    "entry": "WebPanel.dll",
+    "type": "native",
+    "version": "1.0.0",
+    "author": "star",
+    "description": "服务器状态网页面板"
 }

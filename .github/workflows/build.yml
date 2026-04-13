@@ -15,15 +15,9 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    - name: Download LeviLamina SDK (Windows)
-      run: |
-        # 官方 Windows SDK 命名规范：levilamina-sdk-windows-x64.zip
-        curl -L -o sdk.zip https://github.com/LiteLDev/LeviLamina/releases/latest/download/levilamina-sdk-windows-x64.zip
-        7z x sdk.zip -o./sdk
-
     - name: Build plugin
       run: |
-        xmake f -m release --sdk=./sdk
+        xmake f -m release
         xmake
 
     - name: Upload DLL
@@ -41,16 +35,9 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    - name: Download LeviLamina SDK (Linux)
-      run: |
-        # 官方 Linux SDK 命名规范：levilamina-sdk-linux-x64.tar.xz
-        curl -L -o sdk.tar.xz https://github.com/LiteLDev/LeviLamina/releases/latest/download/levilamina-sdk-linux-x64.tar.xz
-        mkdir sdk
-        tar -xf sdk.tar.xz -C sdk
-
     - name: Build plugin
       run: |
-        xmake f -m release --sdk=./sdk
+        xmake f -m release
         xmake
 
     - name: Upload SO
