@@ -37,7 +37,7 @@ jobs:
 
     - name: Build plugin
       run: |
-        xmake f -m release
+        xmake f -y -m release
         xmake
 
     - name: Upload SO
