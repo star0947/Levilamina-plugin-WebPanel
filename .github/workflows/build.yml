@@ -12,8 +12,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup xmake
-      uses: xmake-io/github-action-setup-xmake@v1
+    - name: Install xmake (via official script)
+      run: |
+        Invoke-Expression (Invoke-Webrequest 'https://xmake.io/psget.text' -UseBasicParsing).Content
 
     - name: Build plugin
       run: |
