@@ -15,22 +15,18 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    # 🎯 使用专用 Action 自动下载并解压 Windows SDK
-    - name: Download & Extract LeviLamina SDK (Windows)
-      uses: robinraju/release-downloader@v1.12
-      with:
-        repository: "LiteLDev/LeviLamina"
-        latest: true
-        fileName: "*-windows-x64*.zip"
-        out-file-path: "sdk"
-        extract: true
+    - name: Download LeviLamina SDK (Windows)
+      run: |
+        # 官方 Windows SDK 命名规范：levilamina-sdk-windows-x64.zip
+        curl -L -o sdk.zip https://github.com/LiteLDev/LeviLamina/releases/latest/download/levilamina-sdk-windows-x64.zip
+        7z x sdk.zip -o./sdk
 
-    - name: Configure and Build
+    - name: Build plugin
       run: |
         xmake f -m release --sdk=./sdk
         xmake
 
-    - name: Upload DLL artifact
+    - name: Upload DLL
       uses: actions/upload-artifact@v4
       with:
         name: WebPanel-Windows
@@ -45,22 +41,19 @@ jobs:
     - name: Setup xmake
       uses: xmake-io/github-action-setup-xmake@v1
 
-    # 🎯 使用专用 Action 自动下载并解压 Linux SDK
-    - name: Download & Extract LeviLamina SDK (Linux)
-      uses: robinraju/release-downloader@v1.12
-      with:
-        repository: "LiteLDev/LeviLamina"
-        latest: true
-        fileName: "*-linux-x64*.tar.xz"
-        out-file-path: "sdk"
-        extract: true
+    - name: Download LeviLamina SDK (Linux)
+      run: |
+        # 官方 Linux SDK 命名规范：levilamina-sdk-linux-x64.tar.xz
+        curl -L -o sdk.tar.xz https://github.com/LiteLDev/LeviLamina/releases/latest/download/levilamina-sdk-linux-x64.tar.xz
+        mkdir sdk
+        tar -xf sdk.tar.xz -C sdk
 
-    - name: Configure and Build
+    - name: Build plugin
       run: |
         xmake f -m release --sdk=./sdk
         xmake
 
-    - name: Upload SO artifact
+    - name: Upload SO
       uses: actions/upload-artifact@v4
       with:
         name: WebPanel-Linux
