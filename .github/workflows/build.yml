@@ -1,38 +1,42 @@
-name: Build WebPanel Plugin
-
 on:
+  pull_request:
   push:
-    branches: [ "main" ]
   workflow_dispatch:
-
+  
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        target_type:
+          - server
+          - client
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-    - name: Download and install xmake
-      run: |
-        $url = "https://github.com/xmake-io/xmake/releases/latest/download/xmake-v3.0.8.win64.exe"
-        $installer = "$env:TEMP\xmake-installer.exe"
-        Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
-        Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
+      - uses: xmake-io/github-action-setup-xmake@v1
+        # with:
+        #   xmake-version: branch@master
+      
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/AppData/Local/.xmake
+          key: xmake-${{ hashFiles('xmake.lua') }}
+          restore-keys: |
+            xmake-
 
-    - name: Add xmake to PATH
-      run: |
-        echo "C:\Program Files\xmake" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - run: |
+          xmake repo -u
 
-    - name: Verify xmake
-      run: xmake --version
+      - run: |
+          xmake f -a x64 -m release -p windows -v --target_type=${{ matrix.target_type }} -y
 
-    - name: Build plugin
-      run: |
-        xmake f -y -m release
-        xmake
+      - run: |
+          xmake -v -y
 
-    - name: Upload DLL
-      uses: actions/upload-artifact@v4
-      with:
-        name: WebPanel-Windows
-        path: build/windows/x64/release/WebPanel.dll
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.event.repository.name }}-${{ github.sha }}-${{ matrix.target_type }}-windows-x64
+          path: |
+            bin/

@@ -1,32 +1,85 @@
 {
-    "format_version": 3,
-    "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
-    "tooth": "github.com/star0947/Levilamina-plugin-WebPanel",
-    "version": "0.0.1",
-    "info": {
-        "name": "WebPanel",
-        "description": "\u63D0\u4F9B\u4E00\u4E2A\u76F4\u89C2\u7684\u670D\u52A1\u5668web\u9762\u677F\uFF0C\u7ED1\u5B9A\u52309047\u7AEF\u53E3",
-        "tags": [],
-        "avatar_url": "none"
-    },
-    "variants": [
+  "format_version": 3,
+  "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
+  "tooth": "github.com/LiteLDev/levilamina-mod-template",
+  "version": "0.0.0",
+  "info": {
+    "name": "My Mod",
+    "description": "Description of my mod",
+    "tags": [
+      "platform:levilamina",
+      "type:mod"
+    ],
+    "avatar_url": "https://example.com/my-mod/avatar.png"
+  },
+  "variants": [
+    {
+      "label": "",
+      "platform": "win-x64",
+      "dependencies": {
+        "github.com/LiteLDev/LeviLamina": "1.8.*"
+      },
+      "assets": [
         {
-            "label": "",
-            "platform": "win-x64",
-            "dependencies": {},
-            "assets": [],
-            "preserve_files": [],
-            "remove_files": [],
-            "scripts": {
-                "pre_install": [],
-                "install": [],
-                "post_install": [],
-                "pre_pack": [],
-                "post_pack": [],
-                "pre_uninstall": [],
-                "uninstall": [],
-                "post_uninstall": []
+          "type": "zip",
+          "urls": [
+            "https://{{tooth}}/releases/download/v{{version}}/levilamina-mod-template-server-windows-x64.zip"
+          ],
+          "placements": [
+            {
+              "type": "dir",
+              "src": "my-mod/",
+              "dest": "plugins/my-mod/"
             }
+          ]
         }
-    ]
+      ],
+      "preserve_files": [],
+      "remove_files": [],
+      "scripts": {
+        "pre_install": [],
+        "install": [],
+        "post_install": [],
+        "pre_pack": [],
+        "post_pack": [],
+        "pre_uninstall": [],
+        "uninstall": [],
+        "post_uninstall": []
+      }
+    },
+    {
+      "label": "client",
+      "platform": "win-x64",
+      "dependencies": {
+        "github.com/LiteLDev/LeviLamina#client": "1.8.*"
+      },
+      "assets": [
+        {
+          "type": "zip",
+          "urls": [
+            "https://{{tooth}}/releases/download/v{{version}}/levilamina-mod-template-client-windows-x64.zip"
+          ],
+          "placements": [
+            {
+              "type": "dir",
+              "src": "my-mod/",
+              "dest": "mods/my-mod/"
+            }
+          ]
+        }
+      ],
+      "preserve_files": [],
+      "remove_files": [],
+      "scripts": {
+        "pre_install": [],
+        "install": [],
+        "post_install": [],
+        "pre_pack": [],
+        "post_pack": [],
+        "pre_uninstall": [],
+        "uninstall": [],
+        "post_uninstall": []
+      }
+    }
+  ]
 }

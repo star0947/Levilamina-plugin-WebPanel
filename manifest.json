@@ -3,6 +3,5 @@
     "entry": "WebPanel.dll",
     "type": "native",
     "version": "1.0.0",
-    "author": "star",
-    "description": "服务器状态网页面板"
+    "author": "star"
 }
