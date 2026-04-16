@@ -4,27 +4,19 @@
 // 功能: 在线玩家、世界属性、玩家行为日志
 // =================================================================
 
-#include "webpanel.h" // 对应你的头文件名
+#include "webpanel.h" // 你的头文件
 
-// 基础依赖
-#include "ll/api/Logger.h"
-#include "ll/api/service/ServerInfo.h"
-#include "ll/api/utils/ErrorUtils.h"
-
-// 事件系统
+// 核心模块头文件 (根据你实际使用的功能引入)
 #include "ll/api/event/EventBus.h"
 #include "ll/api/event/player/PlayerJoinEvent.h"
 #include "ll/api/event/player/PlayerLeftEvent.h"
 #include "ll/api/event/player/PlayerChatEvent.h"
 #include "ll/api/event/player/PlayerDieEvent.h"
-
-// 游戏内容API
 #include "ll/api/mc/Player.hpp"
 #include "ll/api/mc/Level.hpp"
 #include "ll/api/service/ServiceManager.h"
-
-// HTTP服务器
 #include "ll/api/http/HttpServer.h"
+#include "ll/api/memory/MemoryOperators.h"
 
 // 第三方库
 #include <nlohmann/json.hpp>
@@ -33,7 +25,7 @@
 #include <ctime>
 #include <filesystem>
 
-// 启用内存操作符
+// 启用内存操作符 (必须)
 #define LL_MEMORY_OPERATORS
 #include "ll/api/memory/MemoryOperators.h"
 
