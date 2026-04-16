@@ -4,19 +4,17 @@
 // 功能: 在线玩家、世界属性、玩家行为日志
 // =================================================================
 
-#include "webpanel.h" // 你的头文件
+#include "webpanel.h"
 
-// 核心模块头文件 (根据你实际使用的功能引入)
+// 核心模块头文件
 #include "ll/api/event/EventBus.h"
-#include "ll/api/event/player/PlayerJoinEvent.h"
-#include "ll/api/event/player/PlayerLeftEvent.h"
-#include "ll/api/event/player/PlayerChatEvent.h"
-#include "ll/api/event/player/PlayerDieEvent.h"
+#include "ll/api/event/ListenerBase.h"
+// 【关键变更】使用聚合头文件，不再单独包含 PlayerJoinEvent.h 等
+#include "ll/api/event/player/PlayerEvents.h"
 #include "ll/api/mc/Player.hpp"
 #include "ll/api/mc/Level.hpp"
 #include "ll/api/service/ServiceManager.h"
 #include "ll/api/http/HttpServer.h"
-#include "ll/api/memory/MemoryOperators.h"
 
 // 第三方库
 #include <nlohmann/json.hpp>
@@ -25,7 +23,7 @@
 #include <ctime>
 #include <filesystem>
 
-// 启用内存操作符 (必须)
+// 启用内存操作符
 #define LL_MEMORY_OPERATORS
 #include "ll/api/memory/MemoryOperators.h"
 
@@ -37,6 +35,12 @@ namespace webpanel {
 const int WEB_PORT = 9047;
 const std::string LOG_FILE = "./plugins/WebPanel/logs.json";
 const size_t MAX_LOGS = 500;
+
+// --- 事件监听器智能指针 ---
+ll::event::ListenerPtr playerJoinListener;
+ll::event::ListenerPtr playerLeftListener;
+ll::event::ListenerPtr playerChatListener;
+ll::event::ListenerPtr playerDieListener;
 
 // --- 工具函数 ---
 std::string getCurrentTimestamp() {
@@ -146,8 +150,8 @@ bool WebPanel::enable() {
     using namespace ll::event;
     auto& bus = EventBus::getInstance();
 
-    // 玩家加入
-    bus.emplaceListener<PlayerJoinEvent>([this](const PlayerJoinEvent& ev) {
+    // 【关键变更】使用新版 Listener API 注册事件
+    playerJoinListener = bus.emplaceListener<PlayerJoinEvent>([this](PlayerJoinEvent& ev) {
         auto& player = ev.self();
         getSelf().getLogger().info("{} 加入了游戏", player.getRealName());
         appendLog({
@@ -158,8 +162,7 @@ bool WebPanel::enable() {
         });
     });
 
-    // 玩家离开
-    bus.emplaceListener<PlayerLeftEvent>([this](const PlayerLeftEvent& ev) {
+    playerLeftListener = bus.emplaceListener<PlayerLeftEvent>([this](PlayerLeftEvent& ev) {
         auto& player = ev.self();
         getSelf().getLogger().info("{} 离开了游戏", player.getRealName());
         appendLog({
@@ -169,8 +172,7 @@ bool WebPanel::enable() {
         });
     });
 
-    // 聊天
-    bus.emplaceListener<PlayerChatEvent>([this](const PlayerChatEvent& ev) {
+    playerChatListener = bus.emplaceListener<PlayerChatEvent>([this](PlayerChatEvent& ev) {
         auto& player = ev.self();
         appendLog({
             {"timestamp", getCurrentTimestamp()},
@@ -180,8 +182,7 @@ bool WebPanel::enable() {
         });
     });
 
-    // 死亡
-    bus.emplaceListener<PlayerDieEvent>([this](const PlayerDieEvent& ev) {
+    playerDieListener = bus.emplaceListener<PlayerDieEvent>([this](PlayerDieEvent& ev) {
         auto& player = ev.self();
         std::string cause = "unknown";
         if (auto src = ev.source(); src) cause = src->getName();
@@ -241,6 +242,12 @@ bool WebPanel::enable() {
 }
 
 bool WebPanel::disable() {
+    // 显式移除监听器，防止内存泄漏
+    playerJoinListener.reset();
+    playerLeftListener.reset();
+    playerChatListener.reset();
+    playerDieListener.reset();
+
     ll::http::HttpServer::getInstance().stop();
     getSelf().getLogger().info("WebPanel 已禁用！");
     return true;
