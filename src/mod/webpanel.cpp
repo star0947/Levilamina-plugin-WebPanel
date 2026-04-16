@@ -3,9 +3,9 @@
 // 端口: 9047
 // =================================================================
 
-// 新版 LeviLamina 推荐使用这个总头文件来包含大部分常用 API
-#include "ll/api/LLAPI.h"
-// 其他必要的头文件
+#include "ll/api/memory/MemoryOperators.h"
+#include "ll/api/Logger.h"
+#include "ll/api/service/ServiceManager.h"
 #include "ll/api/event/EventBus.h"
 #include "ll/api/event/player/PlayerJoinEvent.h"
 #include "ll/api/event/player/PlayerLeftEvent.h"
@@ -25,13 +25,11 @@
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-// 插件基本信息
 const std::string PLUGIN_NAME = "WebPanel";
 const std::string PLUGIN_VERSION = "1.0.0";
 const int WEB_PORT = 9047;
 const std::string LOG_FILE = "./plugins/WebPanel/logs.json";
 
-// 日志缓存（最多保留 500 条）
 std::deque<json> g_logs;
 std::mutex g_logMutex;
 const size_t MAX_LOGS = 500;
@@ -91,7 +89,6 @@ std::vector<json> getLogsData(int limit) {
 // --- API 数据获取 ---
 json getOnlinePlayersData() {
     json players = json::array();
-    // 在新API中，通过Level服务获取玩家列表
     auto level = ll::service::getLevel();
     if (level) {
         for (auto player : level->getAllPlayers()) {
@@ -121,15 +118,14 @@ json getWorldData() {
     };
 }
 
-// --- 事件监听与 HTTP 服务器启动 ---
+// --- 事件监听 ---
 void registerEvents() {
     using namespace ll::event;
     auto& bus = EventBus::getInstance();
 
-    // 玩家加入
     bus.emplaceListener<PlayerJoinEvent>([](const PlayerJoinEvent& ev) {
         auto& player = ev.self();
-        ll::logger::info("{} 加入了游戏", player.getRealName());
+        ll::Logger::info("{} 加入了游戏", player.getRealName());
         appendLog({
             {"timestamp", [](){ auto t = std::time(nullptr); char buf[32]; std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&t)); return std::string(buf); }()},
             {"player", player.getRealName()},
@@ -138,10 +134,9 @@ void registerEvents() {
         });
     });
 
-    // 玩家离开
     bus.emplaceListener<PlayerLeftEvent>([](const PlayerLeftEvent& ev) {
         auto& player = ev.self();
-        ll::logger::info("{} 离开了游戏", player.getRealName());
+        ll::Logger::info("{} 离开了游戏", player.getRealName());
         appendLog({
             {"timestamp", [](){ auto t = std::time(nullptr); char buf[32]; std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&t)); return std::string(buf); }()},
             {"player", player.getRealName()},
@@ -149,7 +144,6 @@ void registerEvents() {
         });
     });
 
-    // 聊天
     bus.emplaceListener<PlayerChatEvent>([](const PlayerChatEvent& ev) {
         auto& player = ev.self();
         appendLog({
@@ -160,7 +154,6 @@ void registerEvents() {
         });
     });
 
-    // 死亡
     bus.emplaceListener<PlayerDieEvent>([](const PlayerDieEvent& ev) {
         auto& player = ev.self();
         std::string cause = "unknown";
@@ -174,6 +167,7 @@ void registerEvents() {
     });
 }
 
+// --- HTTP 服务器 ---
 void setupHttpServer() {
     auto& http = ll::http::HttpServer::getInstance();
 
@@ -214,11 +208,13 @@ void setupHttpServer() {
     });
 
     http.listen("0.0.0.0", WEB_PORT, []() {
-        ll::logger::info("HTTP 服务器已启动，访问 http://0.0.0.0:{} 查看面板", WEB_PORT);
+        ll::Logger::info("HTTP 服务器已启动，访问 http://0.0.0.0:{} 查看面板", WEB_PORT);
     });
 }
 
-// --- 插件入口（由 LL 调用）---
+// --- 插件入口（LL 新架构）---
+LL_MEMORY_OPERATORS();
+
 bool ll_mod_load() {
     initDirectory();
     loadLogsFromFile();
@@ -228,12 +224,12 @@ bool ll_mod_load() {
 bool ll_mod_enable() {
     registerEvents();
     setupHttpServer();
-    ll::logger::info("{} v{} 已启用！", PLUGIN_NAME, PLUGIN_VERSION);
+    ll::Logger::info("{} v{} 已启用！", PLUGIN_NAME, PLUGIN_VERSION);
     return true;
 }
 
 bool ll_mod_disable() {
     ll::http::HttpServer::getInstance().stop();
-    ll::logger::info("{} 已禁用！", PLUGIN_NAME);
+    ll::Logger::info("{} 已禁用！", PLUGIN_NAME);
     return true;
 }
