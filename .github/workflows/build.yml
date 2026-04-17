@@ -15,7 +15,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: xmake-io/github-action-setup-xmake@v1
-
+        # with:
+        #   xmake-version: branch@master
+      
       - uses: actions/cache@v5
         with:
           path: |
@@ -24,17 +26,13 @@ jobs:
           restore-keys: |
             xmake-
 
-      - name: Update xmake repositories
-        shell: cmd
-        run: |
+      - run: |
           xmake repo -u
 
-      - name: Configure xmake
-        run: |
+      - run: |
           xmake f -a x64 -m release -p windows -v --target_type=${{ matrix.target_type }} -y
 
-      - name: Build
-        run: |
+      - run: |
           xmake -v -y
 
       - uses: actions/upload-artifact@v7
