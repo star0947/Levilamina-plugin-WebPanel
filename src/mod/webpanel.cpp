@@ -8,13 +8,15 @@
 
 // 核心模块头文件
 #include "ll/api/event/EventBus.h"
-#include "ll/api/event/ListenerBase.h"
-// 【关键变更】使用聚合头文件，不再单独包含 PlayerJoinEvent.h 等
-#include "ll/api/event/player/PlayerEvents.h"
-#include "ll/api/mc/Player.hpp"
-#include "ll/api/mc/Level.hpp"
-#include "ll/api/service/ServiceManager.h"
-#include "ll/api/http/HttpServer.h"
+#include "ll/api/event/player/PlayerJoinEvent.h"
+#include "ll/api/event/player/PlayerDisconnectEvent.h"
+#include "ll/api/event/player/PlayerChatEvent.h"
+#include "ll/api/event/player/PlayerDieEvent.h"
+#include "mc/world/actor/player/Player.h"
+#include "mc/world/level/Level.h"
+#include "ll/api/service/Bedrock.h"
+#include "mc/world/actor/ActorDamageSource.h"
+#include "mc/platform/UUID.h"
 
 // 第三方库
 #include <nlohmann/json.hpp>
@@ -33,14 +35,7 @@ namespace fs = std::filesystem;
 namespace webpanel {
 
 const int WEB_PORT = 9047;
-const std::string LOG_FILE = "./plugins/WebPanel/logs.json";
 const size_t MAX_LOGS = 500;
-
-// --- 事件监听器智能指针 ---
-ll::event::ListenerPtr playerJoinListener;
-ll::event::ListenerPtr playerLeftListener;
-ll::event::ListenerPtr playerChatListener;
-ll::event::ListenerPtr playerDieListener;
 
 // --- 工具函数 ---
 std::string getCurrentTimestamp() {
@@ -57,11 +52,11 @@ WebPanel& WebPanel::getInstance() {
 }
 
 void WebPanel::initDirectory() const {
-    fs::create_directories("./plugins/WebPanel");
+    fs::create_directories(getSelf().getDataDir()); // 使用官方API
 }
 
 std::string WebPanel::getLogFilePath() const {
-    return LOG_FILE;
+    return (getSelf().getDataDir() / "logs.json").string(); // 使用官方API
 }
 
 void WebPanel::loadLogsFromFile() {
@@ -80,8 +75,8 @@ void WebPanel::loadLogsFromFile() {
     } catch (...) {}
 }
 
-void WebPanel::saveLogsToFile() const {
-    std::lock_guard lock(mLogMutex);
+void WebPanel::saveLogsToFile() {
+    // 不加锁，由调用方保证线程安全
     std::ofstream ofs(getLogFilePath());
     if (!ofs.is_open()) return;
     json j = json::array();
@@ -90,12 +85,10 @@ void WebPanel::saveLogsToFile() const {
 }
 
 void WebPanel::appendLog(const json& entry) {
-    {
-        std::lock_guard lock(mLogMutex);
-        mLogs.push_back(entry);
-        if (mLogs.size() > MAX_LOGS) mLogs.pop_front();
-    }
-    saveLogsToFile();
+    std::lock_guard lock(mLogMutex);
+    mLogs.push_back(entry);
+    if (mLogs.size() > MAX_LOGS) mLogs.pop_front();
+    saveLogsToFile(); // 此时已持锁
 }
 
 std::vector<json> WebPanel::getLogs(int limit) const {
@@ -109,33 +102,39 @@ std::vector<json> WebPanel::getLogs(int limit) const {
 
 json WebPanel::getOnlinePlayersData() const {
     json players = json::array();
-    auto level = ll::service::getLevel();
-    if (level) {
-        for (auto player : level->getAllPlayers()) {
-            auto pos = player->getPosition();
+    ll::service::getLevel().transform([&](Level& level) {
+        level.forEachPlayer([&](Player& player) {
+            auto pos = player.getPosition();
             players.push_back({
-                {"name", player->getRealName()},
-                {"uuid", player->getUuid()},
-                {"gameMode", static_cast<int>(player->getGameMode())},
-                {"health", player->getHealth()},
-                {"maxHealth", player->getMaxHealth()},
+                {"name", player.getRealName()},
+                {"uuid", player.getUuid().asString()},
+                {"health", player.getHealth()},
+                {"maxHealth", player.getMaxHealth()},
                 {"pos", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
-                {"dimension", static_cast<int>(pos.dim)}
+                {"dimension", static_cast<int>(player.getDimension().getDimensionId())}
             });
-        }
-    }
+            return true;
+        });
+        return true;
+    });
     return players;
 }
 
 json WebPanel::getWorldData() const {
-    auto level = ll::service::getLevel();
-    if (!level) return {};
-    return {
-        {"time", level->getTime()},
-        {"seed", level->getSeed()},
-        {"weather", static_cast<int>(level->getWeather())},
-        {"playerCount", level->getAllPlayers().size()}
-    };
+    json result;
+    ll::service::getLevel().transform([&](Level& level) {
+        result = {
+            {"time", level.getTime()},
+            {"seed", level.getSeed()},
+            {"weather", static_cast<int>(level.getWeather())},
+            {"playerCount", 0} // 需要单独统计
+        };
+        int count = 0;
+        level.forEachPlayer([&](Player&) { count++; return true; });
+        result["playerCount"] = count;
+        return true;
+    });
+    return result;
 }
 
 // --- 插件生命周期 ---
@@ -150,19 +149,18 @@ bool WebPanel::enable() {
     using namespace ll::event;
     auto& bus = EventBus::getInstance();
 
-    // 【关键变更】使用新版 Listener API 注册事件
-    playerJoinListener = bus.emplaceListener<PlayerJoinEvent>([this](PlayerJoinEvent& ev) {
+    mPlayerJoinListener = bus.emplaceListener<PlayerJoinEvent>([this](PlayerJoinEvent& ev) {
         auto& player = ev.self();
         getSelf().getLogger().info("{} 加入了游戏", player.getRealName());
         appendLog({
             {"timestamp", getCurrentTimestamp()},
             {"player", player.getRealName()},
             {"action", "join"},
-            {"ip", player.getIP()}
+            {"ip", player.getIPAndPort()}
         });
     });
 
-    playerLeftListener = bus.emplaceListener<PlayerLeftEvent>([this](PlayerLeftEvent& ev) {
+    mPlayerDisconnectListener = bus.emplaceListener<PlayerDisconnectEvent>([this](PlayerDisconnectEvent& ev) {
         auto& player = ev.self();
         getSelf().getLogger().info("{} 离开了游戏", player.getRealName());
         appendLog({
@@ -172,7 +170,7 @@ bool WebPanel::enable() {
         });
     });
 
-    playerChatListener = bus.emplaceListener<PlayerChatEvent>([this](PlayerChatEvent& ev) {
+    mPlayerChatListener = bus.emplaceListener<PlayerChatEvent>([this](PlayerChatEvent& ev) {
         auto& player = ev.self();
         appendLog({
             {"timestamp", getCurrentTimestamp()},
@@ -182,10 +180,9 @@ bool WebPanel::enable() {
         });
     });
 
-    playerDieListener = bus.emplaceListener<PlayerDieEvent>([this](PlayerDieEvent& ev) {
+    mPlayerDieListener = bus.emplaceListener<PlayerDieEvent>([this](PlayerDieEvent& ev) {
         auto& player = ev.self();
-        std::string cause = "unknown";
-        if (auto src = ev.source(); src) cause = src->getName();
+        std::string cause = ActorDamageSource::lookupCauseName(ev.source().mCause);
         appendLog({
             {"timestamp", getCurrentTimestamp()},
             {"player", player.getRealName()},
@@ -195,11 +192,11 @@ bool WebPanel::enable() {
     });
 
     // HTTP 服务器
-    auto& http = ll::http::HttpServer::getInstance();
+    mHttpServer = std::make_unique<httplib::Server>();
 
-    http.onGet("/", [this](const ll::http::HttpRequest&, ll::http::HttpResponse& res) {
-        res.setHeader("Content-Type", "text/html; charset=utf-8");
-        std::ifstream ifs("./plugins/WebPanel/index.html");
+    mHttpServer->Get("/", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Content-Type", "text/html; charset=utf-8");
+        std::ifstream ifs((getSelf().getDataDir() / "index.html").string());
         if (ifs) {
             std::stringstream buf;
             buf << ifs.rdbuf();
@@ -210,31 +207,36 @@ bool WebPanel::enable() {
         res.status = 200;
     });
 
-    http.onGet("/api/players", [this](const ll::http::HttpRequest&, ll::http::HttpResponse& res) {
-        res.setHeader("Content-Type", "application/json");
+    mHttpServer->Get("/api/players", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Content-Type", "application/json");
         res.body = getOnlinePlayersData().dump();
         res.status = 200;
     });
 
-    http.onGet("/api/world", [this](const ll::http::HttpRequest&, ll::http::HttpResponse& res) {
-        res.setHeader("Content-Type", "application/json");
+    mHttpServer->Get("/api/world", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Content-Type", "application/json");
         res.body = getWorldData().dump();
         res.status = 200;
     });
 
-    http.onGet("/api/logs", [this](const ll::http::HttpRequest& req, ll::http::HttpResponse& res) {
+    mHttpServer->Get("/api/logs", [this](const httplib::Request& req, httplib::Response& res) {
         int limit = 100;
-        if (req.hasParam("limit")) limit = std::stoi(req.getParam("limit"));
+        if (req.has_param("limit")) limit = std::stoi(req.get_param_value("limit"));
         auto logs = getLogs(limit);
         json arr = json::array();
         for (const auto& l : logs) arr.push_back(l);
-        res.setHeader("Content-Type", "application/json");
+        res.set_header("Content-Type", "application/json");
         res.body = arr.dump();
         res.status = 200;
     });
 
-    http.listen("0.0.0.0", WEB_PORT, [this]() {
-        getSelf().getLogger().info("HTTP 服务器已启动，访问 http://0.0.0.0:{} 查看面板", WEB_PORT);
+    // 在新线程中启动 HTTP 服务器
+    mHttpThread = std::thread([this]() {
+        if (!mHttpServer->listen("0.0.0.0", WEB_PORT)) {
+            getSelf().getLogger().error("HTTP 服务器启动失败！");
+        } else {
+            getSelf().getLogger().info("HTTP 服务器已启动，访问 http://0.0.0.0:{} 查看面板", WEB_PORT);
+        }
     });
 
     getSelf().getLogger().info("WebPanel v1.0.0 已启用！");
@@ -242,13 +244,19 @@ bool WebPanel::enable() {
 }
 
 bool WebPanel::disable() {
-    // 显式移除监听器，防止内存泄漏
-    playerJoinListener.reset();
-    playerLeftListener.reset();
-    playerChatListener.reset();
-    playerDieListener.reset();
+    auto& bus = ll::event::EventBus::getInstance();
+    bus.removeListener(mPlayerJoinListener);
+    bus.removeListener(mPlayerDisconnectListener);
+    bus.removeListener(mPlayerChatListener);
+    bus.removeListener(mPlayerDieListener);
 
-    ll::http::HttpServer::getInstance().stop();
+    if (mHttpServer) {
+        mHttpServer->stop();
+    }
+    if (mHttpThread.joinable()) {
+        mHttpThread.join();
+    }
+
     getSelf().getLogger().info("WebPanel 已禁用！");
     return true;
 }

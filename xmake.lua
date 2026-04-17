@@ -1,30 +1,27 @@
+-- 设置构建模式（debug/release）
 add_rules("mode.debug", "mode.release")
 
+-- 添加 LeviLamina 官方仓库
 add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")
 
-option("target_type")
-    set_default("server")
-    set_showmenu(true)
-    set_values("server", "client")
-option_end()
+-- 声明依赖项
+add_requires("levilamina", {configs = {target_type = "server"}})
+add_requires("nlohmann_json")
 
-add_requires("levilamina", {configs = {target_type = get_config("target_type")}})
-add_requires("levibuildscript")
+add_requires("cpp-httplib")
 
-if not has_config("vs_runtime") then
-    set_runtimes("MD")
-end
-
-target("WebPanel") -- 插件名称
-    add_rules("@levibuildscript/linkrule")
-    add_rules("@levibuildscript/modpacker")
-    add_cxflags("/EHa", "/utf-8", "/W4", "/w44265", "/w44289", "/w44296", "/w45263", "/w44738", "/w45204")
-    add_defines("NOMINMAX", "UNICODE")
-    add_packages("levilamina")
-    set_exceptions("none")
+-- 定义构建目标
+target("WebPanel")
+    -- 设置为动态库 (.dll)
     set_kind("shared")
-    set_languages("c++20")
-    set_symbols("debug")
-    add_headerfiles("src/**.h")
+    -- 添加源文件
     add_files("src/**.cpp")
-    add_includedirs("src")
+    -- 添加头文件搜索路径
+    add_includedirs("include") -- 让编译器能找到 httplib.h
+    -- 添加依赖包
+    add_packages("levilamina", "nlohmann_json")
+    -- 设置语言标准
+    set_languages("c++20")
+    -- 定义编译宏
+    add_defines("NOMINMAX", "UNICODE")
+    add_packages("levilamina", "cpp-httplib")
