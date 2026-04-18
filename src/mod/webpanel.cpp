@@ -17,6 +17,7 @@
 #include "mc/entity/components/AttributesComponent.h"
 #include "mc/world/attribute/AttributeInstance.h"
 #include "mc/world/level/dimension/Dimension.h"
+#include "mc/deps/core/utility/optional_ref.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -24,6 +25,7 @@
 #include <ctime>
 #include <filesystem>
 #include <future>
+#include <utility>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
