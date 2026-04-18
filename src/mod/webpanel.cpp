@@ -16,9 +16,7 @@
 #include "ll/api/thread/ServerThreadExecutor.h"
 #include "mc/entity/components/AttributesComponent.h"
 #include "mc/world/attribute/AttributeInstance.h"
-#include "mc/deps/core/string/HashedString.h"
 #include "mc/world/level/dimension/Dimension.h"
-#include "mc/deps/game_refs/WeakRef.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -26,7 +24,6 @@
 #include <ctime>
 #include <filesystem>
 #include <future>
-#include <chrono>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -107,40 +104,27 @@ json WebPanel::getOnlinePlayersData() const {
         level.forEachPlayer([&](Player& player) {
             auto pos = player.getPosition();
 
-            // --- 获取生命值：通过 ECS AttributesComponent，绕过 MCAPI ---
-            float health = 0.0f;
-            float maxHealth = 20.0f; // 默认值
-            auto* attrComp = player.getEntityContext().tryGetComponent<AttributesComponent>();
+            // --- 生命值：通过 ECS 组件获取，完全绕过 MCAPI 符号解析 ---
+            float health = 0.0f, maxHealth = 20.0f;
+            auto attrComp = player.getEntityContext().getComponent<AttributesComponent>();
             if (attrComp) {
-                // 优先通过名称 "minecraft:health" 精确查找
-                auto ref = attrComp->mAttributes.getMutableInstance(HashedString{"minecraft:health"});
-                if (ref.mInstance) {
-                    health = ref.mInstance->mCurrentValue;
-                    maxHealth = ref.mInstance->mCurrentMaxValue;
-                } else {
-                    // 降级：遍历 mInstanceMap，取 mCurrentMaxValue 最大的属性（通常就是 HEALTH）
-                    for (auto& [id, instance] : attrComp->mAttributes.mInstanceMap) {
-                        if (instance.mCurrentMaxValue > maxHealth) {
-                            health = instance.mCurrentValue;
-                            maxHealth = instance.mCurrentMaxValue;
-                        }
+                for (auto& [id, instance] : attrComp->mAttributes.mInstanceMap) {
+                    // 取 maxHealth 最大的那个属性（通常就是 HEALTH）
+                    if (instance.mCurrentMaxValue > maxHealth || maxHealth == 20.0f) {
+                        health = instance.mCurrentValue;
+                        maxHealth = instance.mCurrentMaxValue;
                     }
                 }
             }
 
-            // --- 获取维度 ID：直接访问 Dimension::mId，绕过 getDimensionId() ---
+            // --- 维度 ID：通过 Dimension 直接获取 ---
             int dimId = 0;
-            // 尝试使用 getDimensionId()（可能失败），如果抛出异常则走内存路径
             try {
                 dimId = static_cast<int>(player.getDimensionId());
             } catch (...) {
-                // 降级：通过 mDimension 成员直接读取
-                // mDimension 类型：TypedStorage<8,16,WeakRef<Dimension>>
-                // WeakRef 有 lock() 方法返回 StackRefResult<Dimension>
-                auto dimRef = player.mDimension->lock();
-                if (dimRef) {
-                    dimId = static_cast<int>(dimRef->mId);
-                }
+                // 如果 getDimensionId() 符号缺失，通过 Dimension 成员获取
+                auto& dim = player.getDimension();
+                dimId = static_cast<int>(dim.mId);
             }
 
             players.push_back({
@@ -162,8 +146,8 @@ json WebPanel::getWorldData() const {
     json result;
     ll::service::getLevel().transform([&](Level& level) {
         auto& ld = level.getLevelData();
-        bool isRaining = static_cast<float>(ld.mRainLevel) > 0.0f;
-        bool isThunder = static_cast<float>(ld.mLightningLevel) > 0.0f;
+        bool isRaining = (float)ld.mRainLevel > 0.0f;
+        bool isThunder = (float)ld.mLightningLevel > 0.0f;
 
         result = {
             {"time", level.getTime()},
