@@ -13,12 +13,14 @@
 #include "mc/platform/UUID.h"
 #include "magic_enum/magic_enum_all.hpp"
 #include "ll/api/mod/RegisterHelper.h"
+#include "ll/api/thread/ServerThreadExecutor.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
 #include <ctime>
 #include <filesystem>
+#include <future>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -192,6 +194,7 @@ bool WebPanel::enable() {
     // HTTP 服务器
     mHttpServer = std::make_unique<httplib::Server>();
 
+    // 首页 - 文件读取，无需主线程调度
     mHttpServer->Get("/", [this](const httplib::Request&, httplib::Response& res) {
         res.set_header("Content-Type", "text/html; charset=utf-8");
         std::ifstream ifs((getSelf().getDataDir() / "index.html").string());
@@ -205,18 +208,65 @@ bool WebPanel::enable() {
         res.status = 200;
     });
 
+    // 玩家列表 API - 调度到主线程 + shared_ptr 防悬空
     mHttpServer->Get("/api/players", [this](const httplib::Request&, httplib::Response& res) {
+        auto promise = std::make_shared<std::promise<std::string>>();
+        auto future = promise->get_future();
+
+        ll::thread::ServerThreadExecutor::getDefault().execute([this, promise]() {
+            try {
+                promise->set_value(getOnlinePlayersData().dump());
+            } catch (...) {
+                promise->set_exception(std::current_exception());
+            }
+        });
+
         res.set_header("Content-Type", "application/json");
-        res.body = getOnlinePlayersData().dump();
-        res.status = 200;
+        auto status = future.wait_for(std::chrono::seconds(5));
+        if (status == std::future_status::ready) {
+            try {
+                res.body = future.get();
+                res.status = 200;
+            } catch (const std::exception& e) {
+                res.status = 500;
+                res.body = R"({"error": ")" + std::string(e.what()) + R"("})";
+            }
+        } else {
+            res.status = 503;
+            res.body = R"({"error": "server shutting down or busy"})";
+        }
     });
 
+    // 世界信息 API - 调度到主线程 + shared_ptr 防悬空
     mHttpServer->Get("/api/world", [this](const httplib::Request&, httplib::Response& res) {
+        auto promise = std::make_shared<std::promise<std::string>>();
+        auto future = promise->get_future();
+
+        ll::thread::ServerThreadExecutor::getDefault().execute([this, promise]() {
+            try {
+                promise->set_value(getWorldData().dump());
+            } catch (...) {
+                promise->set_exception(std::current_exception());
+            }
+        });
+
         res.set_header("Content-Type", "application/json");
-        res.body = getWorldData().dump();
-        res.status = 200;
+        auto status = future.wait_for(std::chrono::seconds(5));
+        if (status == std::future_status::ready) {
+            try {
+                res.body = future.get();
+                res.status = 200;
+            } catch (const std::exception& e) {
+                res.status = 500;
+                res.body = R"({"error": ")" + std::string(e.what()) + R"("})";
+            }
+        } else {
+            res.status = 503;
+            res.body = R"({"error": "server shutting down or busy"})";
+        }
     });
 
+    // 日志 API - 线程安全，直接执行
     mHttpServer->Get("/api/logs", [this](const httplib::Request& req, httplib::Response& res) {
         int limit = 100;
         if (req.has_param("limit")) limit = std::stoi(req.get_param_value("limit"));
