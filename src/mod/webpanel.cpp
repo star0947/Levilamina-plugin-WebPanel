@@ -14,6 +14,9 @@
 #include "magic_enum/magic_enum_all.hpp"
 #include "ll/api/mod/RegisterHelper.h"
 #include "ll/api/thread/ServerThreadExecutor.h"
+#include "mc/world/attribute/SharedAttributes.h"
+#include "mc/world/attribute/AttributeInstanceConstRef.h"
+#include "mc/world/attribute/AttributeInstance.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -100,11 +103,17 @@ json WebPanel::getOnlinePlayersData() const {
     ll::service::getLevel().transform([&](Level& level) {
         level.forEachPlayer([&](Player& player) {
             auto pos = player.getPosition();
+
+            // 通过属性系统直接读取生命值，绕过缺失的 MCAPI 符号
+            auto ref = player.getAttribute(SharedAttributes::HEALTH());
+            float health    = ref.mPtr ? ref.mPtr->mCurrentValue    : 0.0f;
+            float maxHealth = ref.mPtr ? ref.mPtr->mCurrentMaxValue : 0.0f;
+
             players.push_back({
                 {"name", player.getRealName()},
                 {"uuid", player.getUuid().asString()},
-                {"health", player.getHealth()},
-                {"maxHealth", player.getMaxHealth()},
+                {"health", health},
+                {"maxHealth", maxHealth},
                 {"pos", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
                 {"dimension", static_cast<int>(player.getDimensionId())}
             });
