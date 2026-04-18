@@ -1,12 +1,5 @@
-// ======================== WebPanel v1.0.0 (C++) ========================
-// LeviLamina Native 插件 - 服务器状态网页面板
-// 端口: 9047
-// 功能: 在线玩家、世界属性、玩家行为日志
-// =================================================================
-
 #include "webpanel.h"
 
-// 核心模块头文件
 #include "ll/api/event/EventBus.h"
 #include "ll/api/event/player/PlayerJoinEvent.h"
 #include "ll/api/event/player/PlayerDisconnectEvent.h"
@@ -14,18 +7,18 @@
 #include "ll/api/event/player/PlayerDieEvent.h"
 #include "mc/world/actor/player/Player.h"
 #include "mc/world/level/Level.h"
+#include "mc/world/level/LevelData.h"
 #include "ll/api/service/Bedrock.h"
 #include "mc/world/actor/ActorDamageSource.h"
 #include "mc/platform/UUID.h"
+#include "magic_enum/magic_enum_all.hpp"
 
-// 第三方库
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
 #include <ctime>
 #include <filesystem>
 
-// 启用内存操作符
 #define LL_MEMORY_OPERATORS
 #include "ll/api/memory/MemoryOperators.h"
 
@@ -40,8 +33,10 @@ const size_t MAX_LOGS = 500;
 // --- 工具函数 ---
 std::string getCurrentTimestamp() {
     auto t = std::time(nullptr);
+    struct tm tm_buf;
+    gmtime_s(&tm_buf, &t);
     char buf[32];
-    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&t));
+    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm_buf);
     return std::string(buf);
 }
 
@@ -52,11 +47,12 @@ WebPanel& WebPanel::getInstance() {
 }
 
 void WebPanel::initDirectory() const {
-    fs::create_directories(getSelf().getDataDir()); // 使用官方API
+    auto dataDir = getSelf().getDataDir();
+    fs::create_directories(dataDir);
 }
 
 std::string WebPanel::getLogFilePath() const {
-    return (getSelf().getDataDir() / "logs.json").string(); // 使用官方API
+    return (getSelf().getDataDir() / "logs.json").string();
 }
 
 void WebPanel::loadLogsFromFile() {
@@ -76,7 +72,6 @@ void WebPanel::loadLogsFromFile() {
 }
 
 void WebPanel::saveLogsToFile() {
-    // 不加锁，由调用方保证线程安全
     std::ofstream ofs(getLogFilePath());
     if (!ofs.is_open()) return;
     json j = json::array();
@@ -88,7 +83,7 @@ void WebPanel::appendLog(const json& entry) {
     std::lock_guard lock(mLogMutex);
     mLogs.push_back(entry);
     if (mLogs.size() > MAX_LOGS) mLogs.pop_front();
-    saveLogsToFile(); // 此时已持锁
+    saveLogsToFile();
 }
 
 std::vector<json> WebPanel::getLogs(int limit) const {
@@ -111,7 +106,7 @@ json WebPanel::getOnlinePlayersData() const {
                 {"health", player.getHealth()},
                 {"maxHealth", player.getMaxHealth()},
                 {"pos", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
-                {"dimension", static_cast<int>(player.getDimension().getDimensionId())}
+                {"dimension", static_cast<int>(player.getDimensionId())}
             });
             return true;
         });
@@ -123,11 +118,16 @@ json WebPanel::getOnlinePlayersData() const {
 json WebPanel::getWorldData() const {
     json result;
     ll::service::getLevel().transform([&](Level& level) {
+        auto& ld = level.getLevelData();
+        bool isRaining = static_cast<float>(ld.mRainLevel) > 0.0f;
+        bool isThunder = static_cast<float>(ld.mLightningLevel) > 0.0f;
+
         result = {
             {"time", level.getTime()},
             {"seed", level.getSeed()},
-            {"weather", static_cast<int>(level.getWeather())},
-            {"playerCount", 0} // 需要单独统计
+            {"isRaining", isRaining},
+            {"isThunder", isThunder},
+            {"playerCount", 0}
         };
         int count = 0;
         level.forEachPlayer([&](Player&) { count++; return true; });
@@ -182,7 +182,7 @@ bool WebPanel::enable() {
 
     mPlayerDieListener = bus.emplaceListener<PlayerDieEvent>([this](PlayerDieEvent& ev) {
         auto& player = ev.self();
-        std::string cause = ActorDamageSource::lookupCauseName(ev.source().mCause);
+        std::string cause = std::string(magic_enum::enum_name(ev.source().mCause));
         appendLog({
             {"timestamp", getCurrentTimestamp()},
             {"player", player.getRealName()},
@@ -230,7 +230,6 @@ bool WebPanel::enable() {
         res.status = 200;
     });
 
-    // 在新线程中启动 HTTP 服务器
     mHttpThread = std::thread([this]() {
         if (!mHttpServer->listen("0.0.0.0", WEB_PORT)) {
             getSelf().getLogger().error("HTTP 服务器启动失败！");
@@ -263,4 +262,12 @@ bool WebPanel::disable() {
 
 } // namespace webpanel
 
-LL_REGISTER_MOD(webpanel::WebPanel, webpanel::WebPanel::getInstance());
+// 手动定义插件入口，绑定 NativeMod 指针
+extern "C" {
+    LL_SHARED_EXPORT bool ll_mod_load(ll::mod::NativeMod& self) {
+        auto& inst = webpanel::WebPanel::getInstance();
+        inst.setSelf(&self);
+        ::ll::mod::bindToMod(inst, self);
+        return inst.load();
+    }
+}

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ll/api/mod/NativeMod.h"
 #include <memory>
 #include <deque>
 #include <mutex>
@@ -8,16 +7,20 @@
 #include <nlohmann/json.hpp>
 #include "httplib.h"
 
-namespace ll::event { class ListenerBase; }
+namespace ll {
+    class Logger;
+    namespace event { using ListenerPtr = std::shared_ptr<class ListenerBase>; }
+    namespace mod { class NativeMod; }
+}
 
 namespace webpanel {
 
-class WebPanel : public ll::mod::NativeMod {
+class WebPanel {
 public:
     static WebPanel& getInstance();
 
     WebPanel() = default;
-    [[nodiscard]] ll::mod::NativeMod& getSelf() const { return ll::mod::NativeMod::current(); }
+    ~WebPanel() = default;
 
     bool load();
     bool enable();
@@ -25,18 +28,24 @@ public:
 
     void appendLog(const nlohmann::json& entry);
     std::vector<nlohmann::json> getLogs(int limit = 100) const;
+
     nlohmann::json getOnlinePlayersData() const;
     nlohmann::json getWorldData() const;
 
+    void setSelf(ll::mod::NativeMod* self) { mSelf = self; }
+    ll::mod::NativeMod& getSelf() const { return *mSelf; }
+
 private:
+    ll::mod::NativeMod* mSelf = nullptr;
+
     std::deque<nlohmann::json> mLogs;
     mutable std::mutex mLogMutex;
     const size_t MAX_LOGS = 500;
 
-    std::shared_ptr<ll::event::ListenerBase> mPlayerJoinListener;
-    std::shared_ptr<ll::event::ListenerBase> mPlayerDisconnectListener;
-    std::shared_ptr<ll::event::ListenerBase> mPlayerChatListener;
-    std::shared_ptr<ll::event::ListenerBase> mPlayerDieListener;
+    ll::event::ListenerPtr mPlayerJoinListener;
+    ll::event::ListenerPtr mPlayerDisconnectListener;
+    ll::event::ListenerPtr mPlayerChatListener;
+    ll::event::ListenerPtr mPlayerDieListener;
 
     std::unique_ptr<httplib::Server> mHttpServer;
     std::thread mHttpThread;
