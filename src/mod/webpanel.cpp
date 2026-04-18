@@ -14,9 +14,11 @@
 #include "magic_enum/magic_enum_all.hpp"
 #include "ll/api/mod/RegisterHelper.h"
 #include "ll/api/thread/ServerThreadExecutor.h"
-#include "mc/world/attribute/SharedAttributes.h"
-#include "mc/world/attribute/AttributeInstanceConstRef.h"
+#include "mc/entity/components/AttributesComponent.h"
 #include "mc/world/attribute/AttributeInstance.h"
+#include "mc/deps/core/string/HashedString.h"
+#include "mc/world/level/dimension/Dimension.h"
+#include "mc/deps/game_refs/WeakRef.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -24,6 +26,7 @@
 #include <ctime>
 #include <filesystem>
 #include <future>
+#include <chrono>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -104,10 +107,41 @@ json WebPanel::getOnlinePlayersData() const {
         level.forEachPlayer([&](Player& player) {
             auto pos = player.getPosition();
 
-            // 通过属性系统直接读取生命值，绕过缺失的 MCAPI 符号
-            auto ref = player.getAttribute(SharedAttributes::HEALTH());
-            float health    = ref.mPtr ? ref.mPtr->mCurrentValue    : 0.0f;
-            float maxHealth = ref.mPtr ? ref.mPtr->mCurrentMaxValue : 0.0f;
+            // --- 获取生命值：通过 ECS AttributesComponent，绕过 MCAPI ---
+            float health = 0.0f;
+            float maxHealth = 20.0f; // 默认值
+            auto* attrComp = player.getEntityContext().tryGetComponent<AttributesComponent>();
+            if (attrComp) {
+                // 优先通过名称 "minecraft:health" 精确查找
+                auto ref = attrComp->mAttributes.getMutableInstance(HashedString{"minecraft:health"});
+                if (ref.mInstance) {
+                    health = ref.mInstance->mCurrentValue;
+                    maxHealth = ref.mInstance->mCurrentMaxValue;
+                } else {
+                    // 降级：遍历 mInstanceMap，取 mCurrentMaxValue 最大的属性（通常就是 HEALTH）
+                    for (auto& [id, instance] : attrComp->mAttributes.mInstanceMap) {
+                        if (instance.mCurrentMaxValue > maxHealth) {
+                            health = instance.mCurrentValue;
+                            maxHealth = instance.mCurrentMaxValue;
+                        }
+                    }
+                }
+            }
+
+            // --- 获取维度 ID：直接访问 Dimension::mId，绕过 getDimensionId() ---
+            int dimId = 0;
+            // 尝试使用 getDimensionId()（可能失败），如果抛出异常则走内存路径
+            try {
+                dimId = static_cast<int>(player.getDimensionId());
+            } catch (...) {
+                // 降级：通过 mDimension 成员直接读取
+                // mDimension 类型：TypedStorage<8,16,WeakRef<Dimension>>
+                // WeakRef 有 lock() 方法返回 StackRefResult<Dimension>
+                auto dimRef = player.mDimension->lock();
+                if (dimRef) {
+                    dimId = static_cast<int>(dimRef->mId);
+                }
+            }
 
             players.push_back({
                 {"name", player.getRealName()},
@@ -115,7 +149,7 @@ json WebPanel::getOnlinePlayersData() const {
                 {"health", health},
                 {"maxHealth", maxHealth},
                 {"pos", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
-                {"dimension", static_cast<int>(player.getDimensionId())}
+                {"dimension", dimId}
             });
             return true;
         });
