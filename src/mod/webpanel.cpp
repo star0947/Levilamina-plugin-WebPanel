@@ -7,11 +7,12 @@
 #include "ll/api/event/player/PlayerDieEvent.h"
 #include "mc/world/actor/player/Player.h"
 #include "mc/world/level/Level.h"
-#include "mc/world/level/LevelData.h"
+#include "mc/world/level/storage/LevelData.h"
 #include "ll/api/service/Bedrock.h"
 #include "mc/world/actor/ActorDamageSource.h"
 #include "mc/platform/UUID.h"
 #include "magic_enum/magic_enum_all.hpp"
+#include "ll/api/mod/RegisterHelper.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -262,7 +263,7 @@ bool WebPanel::disable() {
 
 } // namespace webpanel
 
-// 手动定义插件入口，绑定 NativeMod 指针
+// 手动定义插件入口
 extern "C" {
     LL_SHARED_EXPORT bool ll_mod_load(ll::mod::NativeMod& self) {
         auto& inst = webpanel::WebPanel::getInstance();
