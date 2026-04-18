@@ -20,9 +20,6 @@
 #include <ctime>
 #include <filesystem>
 
-#define LL_MEMORY_OPERATORS
-#include "ll/api/memory/MemoryOperators.h"
-
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
