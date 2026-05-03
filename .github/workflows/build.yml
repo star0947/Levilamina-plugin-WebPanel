@@ -26,7 +26,7 @@ jobs:
 
       - name: Build
         run: |
-          xmake f -a x64 -m release -p windows --target_type=${{ matrix.target_type }}
+          xmake f -a x64 -m release -p windows --target_type=${{ matrix.target_type }} -y
           xmake
 
       - name: Upload artifact
