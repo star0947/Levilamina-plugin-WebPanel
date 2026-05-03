@@ -1,0 +1,9 @@
+{
+    "name": "WebPanel",
+    "description": "Web panel plugin for LeviLamina",
+    "version": "1.0.0",
+    "author": "star",
+    "dependencies": {
+        "levilamina": ">=1.8.0"
+    }
+}

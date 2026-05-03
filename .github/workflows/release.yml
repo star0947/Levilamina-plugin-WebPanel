@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target_type: [server]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+
+      - name: Build
+        run: |
+          xmake f -a x64 -m release -p windows --target_type=${{ matrix.target_type }}
+          xmake
+
+      - name: Prepare artifact
+        run: |
+          mkdir artifact
+          cp -r bin/* artifact/
+          cp CHANGELOG.md LICENSE README.md manifest.json artifact/
+
+      - name: Zip artifact
+        run: |
+          cd artifact
+          zip -r ../WebPanel-${{ matrix.target_type }}-windows-x64.zip *
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: WebPanel-${{ matrix.target_type }}-windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

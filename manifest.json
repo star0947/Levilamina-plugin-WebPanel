@@ -1,0 +1,7 @@
+{
+    "name": "WebPanel",
+    "entry": "WebPanel.dll",
+    "type": "native",
+    "version": "1.0.0",
+    "author": "star"
+}

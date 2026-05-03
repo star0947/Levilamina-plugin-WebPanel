@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target_type: [server]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+
+      - name: Restore cached xmake dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.xmake
+          key: xmake-${{ hashFiles('xmake.lua') }}
+
+      - name: Build
+        run: |
+          xmake f -a x64 -m release -p windows --target_type=${{ matrix.target_type }}
+          xmake
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebPanel-${{ matrix.target_type }}
+          path: bin/
