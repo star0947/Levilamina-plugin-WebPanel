@@ -14,6 +14,11 @@ HttpServer::HttpServer(int port, LogManager& logMgr) : logMgr_(logMgr) {
         std::filesystem::create_directory(webDir);
     }
 
+    // 注册根路径 API 路由（必须放在 set_mount_point 之前，优先匹配）
+    server_.Get("/", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content("{\"status\":\"running\"}", "application/json");
+    });
+
     // 将 web 目录映射为网站的根目录
     server_.set_mount_point("/", webDir.c_str());
 
@@ -26,8 +31,6 @@ HttpServer::HttpServer(int port, LogManager& logMgr) : logMgr_(logMgr) {
     server_.Get(R"(/api/player/([^/]+)/actions)", [&](const httplib::Request& req, httplib::Response& res) {
         ApiHandlers::getPlayerActions(req, res, logMgr_);
     });
-
-
 }
 
 HttpServer::~HttpServer() {
