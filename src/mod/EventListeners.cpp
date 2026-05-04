@@ -9,9 +9,10 @@
 #include "ll/api/event/player/PlayerInteractBlockEvent.h"
 
 #include "mc/world/actor/player/Player.h"
+#include "mc/world/actor/player/PlayerInventory.h"   // 新增：PlayerInventory 完整定义
 #include "mc/world/level/block/Block.h"
 #include "mc/world/level/BlockSource.h"
-#include "mc/world/Container.h"      // 新增：提供完整的 Inventory / Container 定义
+#include "mc/world/Container.h"                       // Container 仍可能间接需要
 
 #include <chrono>
 
@@ -43,11 +44,12 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
             auto& player = ev.self();
             auto& bs = player.getDimensionBlockSource();
             Block const& block = bs.getBlock(ev.pos());
-            auto& tool = player.getInventory().getSelectedItem();
+            // 修复：通过 PlayerInventory 获取手中物品
+            ItemStack const& tool = player.getPlayerInventory().getSelectedItem();
 
             AggregatedBlockAction act;
             act.blockType = block.getTypeName();
-            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";  // 修：isNull()→(bool)tool
+            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
             act.action = "break";
             act.count = 1;
             auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -63,11 +65,11 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
         [](ll::event::PlayerPlacedBlockEvent& ev) {
             auto& player = ev.self();
             Block const& block = ev.placedBlock();
-            auto& tool = player.getInventory().getSelectedItem();
+            ItemStack const& tool = player.getPlayerInventory().getSelectedItem();
 
             AggregatedBlockAction act;
             act.blockType = block.getTypeName();
-            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";  // 修
+            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
             act.action = "place";
             act.count = 1;
             auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -83,11 +85,11 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
         [](ll::event::PlayerInteractBlockEvent& ev) {
             auto& player = ev.self();
             if (auto block = ev.block()) {
-                auto& tool = ev.item();
+                auto& tool = ev.item();  // 交互事件直接提供了物品引用，没问题
 
                 AggregatedBlockAction act;
                 act.blockType = block->getTypeName();
-                act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";  // 修
+                act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
                 act.action = "interact";
                 act.count = 1;
                 auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
