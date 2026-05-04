@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include "PlayerActionLog.h"
-#include "mc/deps/core/mce/UUID.h"
+#include "mc/platform/UUID.h"
 
 class LogManager {
 public:

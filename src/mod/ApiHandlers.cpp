@@ -5,6 +5,7 @@
 #include "ll/api/thread/ServerThreadExecutor.h"
 #include "mc/world/actor/player/Player.h"
 #include "mc/world/level/Level.h"
+#include "mc/platform/UUID.h"
 #include <future>
 #include <string>
 
@@ -77,10 +78,10 @@ void ApiHandlers::getPlayerActions(const httplib::Request& req, httplib::Respons
     // Also try as UUID string directly
     if (!found) {
         uuid = mce::UUID(id);
-        if (!uuid.isEmpty()) found = true;
+        if (uuid) found = true;
     }
     
-    if (!found || uuid.isEmpty()) {
+    if (!found || !uuid) {
         res.status = 404;
         res.set_content("{\"error\":\"player not found\"}", "application/json");
         return;
