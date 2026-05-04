@@ -31,8 +31,10 @@ jobs:
 
       - name: Prepare artifact
         run: |
+          # 模组包已由 modpacker 生成在 bin/WebPanel/ 下
           New-Item -ItemType Directory -Force -Path artifact
-          Copy-Item -Recurse -Force bin/* artifact/
+          Copy-Item -Recurse -Force bin/WebPanel/* artifact/
+          # 确保前端文件也进入 data/web（after_build 已尝试复制，这里作为双保险）
           if (Test-Path assets/web) {
             New-Item -ItemType Directory -Force -Path artifact/data/web
             Copy-Item -Recurse -Force assets/web/* artifact/data/web/

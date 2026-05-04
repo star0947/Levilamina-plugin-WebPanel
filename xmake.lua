@@ -8,9 +8,7 @@ add_requires("levibuildscript")
 add_requires("cpp-httplib")
 add_requires("nlohmann_json")
 
-if not has_config("vs_runtime") then
-    set_runtimes("MD")
-end
+if not has_config("vs_runtime") then set_runtimes("MD") end
 
 target("WebPanel")
     add_rules("@levibuildscript/linkrule")
@@ -28,8 +26,8 @@ target("WebPanel")
 
     after_build(function (target)
         local assetsDir = path.join(os.projectdir(), "assets", "web")
-        -- 输出到 bin/data/web，与插件 DLL 同父目录，结构清晰
-        local dstDir = path.join(target:targetdir(), "data", "web")
+        -- 重点：输出到 bin/WebPanel/data/web/
+        local dstDir = path.join(target:targetdir(), "..", "bin", target:name(), "data", "web")
         if os.isdir(assetsDir) then
             os.mkdir(dstDir)
             os.cp(assetsDir, dstDir, {root = true})
