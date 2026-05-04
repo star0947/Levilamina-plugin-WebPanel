@@ -26,10 +26,10 @@ target("WebPanel")
     add_files("src/**.cpp")
     add_includedirs("src")
 
-    -- 构建后自动复制前端文件到输出目录（可选，方便本地直接得到完整插件结构）
     after_build(function (target)
         local assetsDir = path.join(os.projectdir(), "assets", "web")
-        local dstDir = path.join(target:targetdir(), "..", "data", "web")
+        -- 输出到 bin/data/web，与插件 DLL 同父目录，结构清晰
+        local dstDir = path.join(target:targetdir(), "data", "web")
         if os.isdir(assetsDir) then
             os.mkdir(dstDir)
             os.cp(assetsDir, dstDir, {root = true})

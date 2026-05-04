@@ -29,8 +29,17 @@ jobs:
           xmake f -a x64 -m release -p windows --target_type=${{ matrix.target_type }} -y
           xmake
 
+      - name: Prepare artifact
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact
+          Copy-Item -Recurse -Force bin/* artifact/
+          if (Test-Path assets/web) {
+            New-Item -ItemType Directory -Force -Path artifact/data/web
+            Copy-Item -Recurse -Force assets/web/* artifact/data/web/
+          }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: WebPanel-${{ matrix.target_type }}
-          path: bin/
+          path: artifact/
