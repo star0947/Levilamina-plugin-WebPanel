@@ -1,21 +1,33 @@
 #include "HttpServer.h"
 #include "ApiHandlers.h"
+#include "Config.h"
+#include <filesystem>
 
 HttpServer::HttpServer(int port, LogManager& logMgr) : logMgr_(logMgr) {
+    // 设置静态文件目录，映射到根路径 "/"
+    // Config::DATA_DIR 是 ".../data/player_logs"，取其父目录 "data"，再拼接 "web"
+    std::string dataDir = Config::DATA_DIR.substr(0, Config::DATA_DIR.find_last_of("/\\"));
+    std::string webDir = dataDir + "/web";
+
+    // 如果 web 目录不存在则自动创建
+    if (!std::filesystem::exists(webDir)) {
+        std::filesystem::create_directory(webDir);
+    }
+
+    // 将 web 目录映射为网站的根目录
+    server_.set_mount_point("/", webDir.c_str());
+
+    // API 路由：玩家列表
     server_.Get("/api/players", [&](const httplib::Request& req, httplib::Response& res) {
         ApiHandlers::getPlayers(req, res, logMgr_);
     });
-    
+
+    // API 路由：玩家方块操作日志
     server_.Get(R"(/api/player/([^/]+)/actions)", [&](const httplib::Request& req, httplib::Response& res) {
         ApiHandlers::getPlayerActions(req, res, logMgr_);
     });
-    
-    server_.Get("/", [](const httplib::Request&, httplib::Response& res) {
-        res.set_content("{\"status\":\"WebPanel running\"}", "application/json");
-    });
-    
-    // Optional: set listen port
-    // Actually listen is called in start()
+
+
 }
 
 HttpServer::~HttpServer() {

@@ -1,28 +1,17 @@
--- 全局构建规则和模式
 add_rules("mode.debug", "mode.release")
-
--- 全局第三方仓库
 add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")
-
--- 全局配置选项（与 CI 中的 --target_type=server 联动）
-option("target_type")
-    set_default("server")
-    set_showmenu(true)
-    set_values("server", "client")
+option("target_type") set_default("server") set_showmenu(true) set_values("server", "client")
 option_end()
 
--- 全局依赖包声明
 add_requires("levilamina", {configs = {target_type = get_config("target_type")}})
 add_requires("levibuildscript")
 add_requires("cpp-httplib")
 add_requires("nlohmann_json")
 
--- 运行时库设置
 if not has_config("vs_runtime") then
     set_runtimes("MD")
 end
 
--- 目标模块
 target("WebPanel")
     add_rules("@levibuildscript/linkrule")
     add_rules("@levibuildscript/modpacker")
@@ -36,3 +25,14 @@ target("WebPanel")
     add_headerfiles("src/**.h")
     add_files("src/**.cpp")
     add_includedirs("src")
+
+    -- 构建后自动复制前端文件到输出目录（可选，方便本地直接得到完整插件结构）
+    after_build(function (target)
+        local assetsDir = path.join(os.projectdir(), "assets", "web")
+        local dstDir = path.join(target:targetdir(), "..", "data", "web")
+        if os.isdir(assetsDir) then
+            os.mkdir(dstDir)
+            os.cp(assetsDir, dstDir, {root = true})
+            print("Copied web assets to " .. dstDir)
+        end
+    end)
