@@ -11,6 +11,7 @@
 #include "mc/world/actor/player/Player.h"
 #include "mc/world/level/block/Block.h"
 #include "mc/world/level/BlockSource.h"
+#include "mc/world/Container.h"      // 新增：提供完整的 Inventory / Container 定义
 
 #include <chrono>
 
@@ -46,7 +47,7 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
 
             AggregatedBlockAction act;
             act.blockType = block.getTypeName();
-            act.toolType = tool.isNull() ? "minecraft:empty" : tool.getTypeName();
+            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";  // 修：isNull()→(bool)tool
             act.action = "break";
             act.count = 1;
             auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -66,7 +67,7 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
 
             AggregatedBlockAction act;
             act.blockType = block.getTypeName();
-            act.toolType = tool.isNull() ? "minecraft:empty" : tool.getTypeName();
+            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";  // 修
             act.action = "place";
             act.count = 1;
             auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -86,7 +87,7 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
 
                 AggregatedBlockAction act;
                 act.blockType = block->getTypeName();
-                act.toolType = tool.isNull() ? "minecraft:empty" : tool.getTypeName();
+                act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";  // 修
                 act.action = "interact";
                 act.count = 1;
                 auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
