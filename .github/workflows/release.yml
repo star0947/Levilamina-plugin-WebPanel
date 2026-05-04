@@ -22,14 +22,13 @@ jobs:
 
       - name: Prepare artifact
         run: |
-          mkdir artifact
-          cp -r bin/* artifact/
-          cp CHANGELOG.md LICENSE README.md manifest.json artifact/
+          New-Item -ItemType Directory -Force -Path artifact
+          Copy-Item -Recurse -Force bin/* artifact/
+          Copy-Item -Force CHANGELOG.md, LICENSE, README.md, manifest.json artifact/
 
       - name: Zip artifact
         run: |
-          cd artifact
-          zip -r ../WebPanel-${{ matrix.target_type }}-windows-x64.zip *
+          Compress-Archive -Path artifact/* -DestinationPath WebPanel-${{ matrix.target_type }}-windows-x64.zip
 
       - name: Upload to release
         uses: softprops/action-gh-release@v1
