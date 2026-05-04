@@ -29,7 +29,11 @@ namespace JsonHelper {
             .count = j["count"],
             .firstTime = j["first_time"],
             .lastTime = j["last_time"],
-            .lastPos = BlockPos(j["last_pos"][0], j["last_pos"][1], j["last_pos"][2])
+            .lastPos = BlockPos(
+                j["last_pos"][0].get<int>(),
+                j["last_pos"][1].get<int>(),
+                j["last_pos"][2].get<int>()
+            )
         };
     }
 }
