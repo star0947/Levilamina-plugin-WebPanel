@@ -4,20 +4,31 @@
 #include <filesystem>
 
 HttpServer::HttpServer(int port, LogManager& logMgr) : logMgr_(logMgr) {
-    // 1. 先注册精确路由，确保根路径返回 JSON
-    server_.Get("/", [](const httplib::Request&, httplib::Response& res) {
-        res.set_content("{\"status\":\"running\"}", "application/json");
-    });
-
-    // 2. 设置静态文件目录
+    // 设定静态文件根目录：data/web 路径
     std::string dataDir = Config::DATA_DIR.substr(0, Config::DATA_DIR.find_last_of("/\\"));
     std::string webDir = dataDir + "/web";
     if (!std::filesystem::exists(webDir)) {
         std::filesystem::create_directory(webDir);
     }
+
+    // 使用 pre_routing_handler 拦截根路径的 JSON 状态请求
+    server_.set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
+        // 如果是根路径且 Accept 头包含 "application/json"，返回状态 JSON
+        if (req.path == "/") {
+            std::string accept = req.get_header_value("Accept");
+            if (accept.find("application/json") != std::string::npos) {
+                res.set_content("{\"status\":\"running\"}", "application/json");
+                return httplib::Server::HandlerResponse::Handled;
+            }
+        }
+        // 其他请求继续正常路由（包括静态文件服务）
+        return httplib::Server::HandlerResponse::NextHandler;
+    });
+
+    // 静态文件挂载点
     server_.set_mount_point("/", webDir.c_str());
 
-    // 3. 其他 API 路由
+    // API 路由
     server_.Get("/api/players", [&](const httplib::Request& req, httplib::Response& res) {
         ApiHandlers::getPlayers(req, res, logMgr_);
     });

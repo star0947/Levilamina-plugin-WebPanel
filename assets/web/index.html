@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
   <title>Server WebPanel · 仪表盘</title>
+  <!-- 生产环境 Tailwind 建议本地构建，此处使用 CDN 仅作开发演示 -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -233,11 +234,18 @@
     WebPanel Dashboard · API v1.8.0 · 数据实时更新
   </footer>
 
+  <!-- ========= 核心脚本 ========= -->
   <script>
     (function() {
       const BASE = '';
       const API = {
-        status: () => fetch(`${BASE}/`).then(r => r.json()).catch(e => { console.error('状态请求失败:', e); return null; }),
+        // 显式指定 Accept 头，避免被挂载点拦截
+        status: () => fetch(`${BASE}/`, {headers: {'Accept': 'application/json'}})
+                    .then(r => {
+                      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                      return r.json();
+                    })
+                    .catch(e => { console.error('状态请求失败:', e); return null; }),
         players: () => fetch(`${BASE}/api/players`).then(r => r.json()).catch(e => { console.error('玩家列表请求失败:', e); return null; }),
         playerActions: (nameOrUuid, limit = 20, before = 0) => {
           const params = new URLSearchParams({ type: 'block', limit });
