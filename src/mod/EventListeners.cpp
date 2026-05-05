@@ -27,75 +27,84 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
 
     joinListener_ = bus.emplaceListener<ll::event::PlayerJoinEvent>(
         [](ll::event::PlayerJoinEvent& ev) {
-            logManager_->onPlayerJoin(ev.self().getUuid());
+            try {
+                logManager_->onPlayerJoin(ev.self().getUuid());
+            } catch (...) {}
         }
     );
 
     disconnectListener_ = bus.emplaceListener<ll::event::PlayerDisconnectEvent>(
         [](ll::event::PlayerDisconnectEvent& ev) {
-            logManager_->onPlayerLeave(ev.self().getUuid());
+            try {
+                logManager_->onPlayerLeave(ev.self().getUuid());
+            } catch (...) {}
         }
     );
 
     destroyListener_ = bus.emplaceListener<ll::event::PlayerDestroyBlockEvent>(
         [](ll::event::PlayerDestroyBlockEvent& ev) {
-            auto& player = ev.self();
-            auto& bs = player.getDimensionBlockSource();
-            Block const& block = bs.getBlock(ev.pos());
-            ItemStack const& tool = player.getSelectedItem();
-
-            AggregatedBlockAction act;
-            act.blockType = block.getTypeName();
-            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
-            act.action = "break";
-            act.count = 1;
-            auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count();
-            act.firstTime = now;
-            act.lastTime = now;
-            act.lastPos = ev.pos();
-            logManager_->pushAction(player.getUuid(), act);
-        }
-    );
-
-    placedListener_ = bus.emplaceListener<ll::event::PlayerPlacedBlockEvent>(
-        [](ll::event::PlayerPlacedBlockEvent& ev) {
-            auto& player = ev.self();
-            Block const& block = ev.placedBlock();
-            ItemStack const& tool = player.getSelectedItem();
-
-            AggregatedBlockAction act;
-            act.blockType = block.getTypeName();
-            act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
-            act.action = "place";
-            act.count = 1;
-            auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count();
-            act.firstTime = now;
-            act.lastTime = now;
-            act.lastPos = ev.pos();
-            logManager_->pushAction(player.getUuid(), act);
-        }
-    );
-
-    interactListener_ = bus.emplaceListener<ll::event::PlayerInteractBlockEvent>(
-        [](ll::event::PlayerInteractBlockEvent& ev) {
-            auto& player = ev.self();
-            if (auto block = ev.block()) {
-                auto& tool = ev.item();
+            try {
+                auto& player = ev.self();
+                ItemStack const& tool = player.getSelectedItem();
 
                 AggregatedBlockAction act;
-                act.blockType = block->getTypeName();
+                // 方块已被破坏，无法获取原类型，记录为 "air"
+                act.blockType = "minecraft:air";
                 act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
-                act.action = "interact";
+                act.action = "break";
                 act.count = 1;
                 auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch()).count();
                 act.firstTime = now;
                 act.lastTime = now;
-                act.lastPos = ev.blockPos();
+                act.lastPos = ev.pos();
                 logManager_->pushAction(player.getUuid(), act);
-            }
+            } catch (...) {}
+        }
+    );
+
+    placedListener_ = bus.emplaceListener<ll::event::PlayerPlacedBlockEvent>(
+        [](ll::event::PlayerPlacedBlockEvent& ev) {
+            try {
+                auto& player = ev.self();
+                Block const& block = ev.placedBlock();
+                ItemStack const& tool = player.getSelectedItem();
+
+                AggregatedBlockAction act;
+                act.blockType = block.getTypeName();
+                act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
+                act.action = "place";
+                act.count = 1;
+                auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                act.firstTime = now;
+                act.lastTime = now;
+                act.lastPos = ev.pos();
+                logManager_->pushAction(player.getUuid(), act);
+            } catch (...) {}
+        }
+    );
+
+    interactListener_ = bus.emplaceListener<ll::event::PlayerInteractBlockEvent>(
+        [](ll::event::PlayerInteractBlockEvent& ev) {
+            try {
+                auto& player = ev.self();
+                if (auto block = ev.block()) {
+                    auto& tool = ev.item();
+
+                    AggregatedBlockAction act;
+                    act.blockType = block->getTypeName();
+                    act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
+                    act.action = "interact";
+                    act.count = 1;
+                    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    act.firstTime = now;
+                    act.lastTime = now;
+                    act.lastPos = ev.blockPos();
+                    logManager_->pushAction(player.getUuid(), act);
+                }
+            } catch (...) {}
         }
     );
 }
