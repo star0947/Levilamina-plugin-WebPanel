@@ -11,16 +11,16 @@ HttpServer::HttpServer(int port, LogManager& logMgr) : logMgr_(logMgr) {
         std::filesystem::create_directory(webDir);
     }
 
-    // 预路由处理：对根路径且 Accept 为 application/json 的请求返回状态 JSON，避免被挂载点覆盖
+    // 预路由处理：对根路径且 Accept 为 application/json 的请求返回状态 JSON
     server_.set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
         if (req.path == "/") {
             std::string accept = req.get_header_value("Accept");
             if (accept.find("application/json") != std::string::npos) {
                 res.set_content("{\"status\":\"running\"}", "application/json");
-                return httplib::Server::HandlerResponse::Handled;
+                // 设置响应后，框架会自动结束后续路由，无需显式返回
             }
         }
-        return httplib::Server::HandlerResponse::Continue;  // 修改点：NextHandler → Continue
+        // 如果不满足条件，什么也不做，请求继续进入后续路由（包括静态文件挂载）
     });
 
     // 静态文件挂载
