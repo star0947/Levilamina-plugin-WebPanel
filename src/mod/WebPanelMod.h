@@ -1,8 +1,8 @@
 #pragma once
 #include <memory>
-
-class LogManager;
-class HttpServer;
+#include "EventListeners.h"
+#include "LogManager.h"
+#include "HttpServer.h"
 
 class WebPanelMod {
 public:
@@ -13,4 +13,5 @@ public:
 private:
     std::unique_ptr<LogManager> logManager_;
     std::unique_ptr<HttpServer> httpServer_;
+    EventListeners eventListeners_;   // 新增实例
 };

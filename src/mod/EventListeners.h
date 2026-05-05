@@ -1,19 +1,21 @@
 #pragma once
 #include "ll/api/event/EventBus.h"
 #include <memory>
-
-class LogManager;
+#include "LogManager.h"
 
 class EventListeners {
 public:
-    static void registerAll(ll::event::EventBus& bus, LogManager& logManager);
-    static void unregisterAll(ll::event::EventBus& bus);
+    EventListeners() = default;
+    ~EventListeners() = default;
+
+    void registerAll(ll::event::EventBus& bus, LogManager& logManager);
+    void unregisterAll(ll::event::EventBus& bus);
 
 private:
-    static ll::event::ListenerPtr joinListener_;
-    static ll::event::ListenerPtr disconnectListener_;
-    static ll::event::ListenerPtr destroyListener_;
-    static ll::event::ListenerPtr placedListener_;
-    static ll::event::ListenerPtr interactListener_;
-    static LogManager* logManager_;
+    ll::event::ListenerPtr joinListener_;
+    ll::event::ListenerPtr disconnectListener_;
+    ll::event::ListenerPtr destroyListener_;
+    ll::event::ListenerPtr placedListener_;
+    ll::event::ListenerPtr interactListener_;
+    LogManager* logManager_ = nullptr;
 };

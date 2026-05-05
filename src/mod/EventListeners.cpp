@@ -1,55 +1,55 @@
 #include "EventListeners.h"
-#include "LogManager.h"
-#include "Config.h"
-
 #include "ll/api/event/player/PlayerJoinEvent.h"
 #include "ll/api/event/player/PlayerDisconnectEvent.h"
 #include "ll/api/event/player/PlayerDestroyBlockEvent.h"
 #include "ll/api/event/player/PlayerPlaceBlockEvent.h"
 #include "ll/api/event/player/PlayerInteractBlockEvent.h"
-
 #include "mc/world/actor/player/Player.h"
 #include "mc/world/level/block/Block.h"
 #include "mc/world/level/BlockSource.h"
-
+#include "ll/api/io/Logger.h"
 #include <chrono>
 
-LogManager* EventListeners::logManager_ = nullptr;
-
-ll::event::ListenerPtr EventListeners::joinListener_;
-ll::event::ListenerPtr EventListeners::disconnectListener_;
-ll::event::ListenerPtr EventListeners::destroyListener_;
-ll::event::ListenerPtr EventListeners::placedListener_;
-ll::event::ListenerPtr EventListeners::interactListener_;
+// 辅助函数：通过 event.self() 获取 Player& 并获取 NativeMod 的 Logger
+static ll::io::Logger& getLogger() {
+    return ll::mod::NativeMod::current()->getLogger();
+}
 
 void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     logManager_ = &lm;
 
+    // 注册加入事件
     joinListener_ = bus.emplaceListener<ll::event::PlayerJoinEvent>(
-        [](ll::event::PlayerJoinEvent& ev) {
+        [this](ll::event::PlayerJoinEvent& ev) {
             try {
                 logManager_->onPlayerJoin(ev.self().getUuid());
             } catch (...) {}
         }
     );
+    if (!joinListener_) {
+        getLogger().error("Failed to register PlayerJoinEvent");
+    }
 
+    // 注册离开事件
     disconnectListener_ = bus.emplaceListener<ll::event::PlayerDisconnectEvent>(
-        [](ll::event::PlayerDisconnectEvent& ev) {
+        [this](ll::event::PlayerDisconnectEvent& ev) {
             try {
                 logManager_->onPlayerLeave(ev.self().getUuid());
             } catch (...) {}
         }
     );
+    if (!disconnectListener_) {
+        getLogger().error("Failed to register PlayerDisconnectEvent");
+    }
 
+    // 注册破坏方块事件
     destroyListener_ = bus.emplaceListener<ll::event::PlayerDestroyBlockEvent>(
-        [](ll::event::PlayerDestroyBlockEvent& ev) {
+        [this](ll::event::PlayerDestroyBlockEvent& ev) {
             try {
                 auto& player = ev.self();
                 ItemStack const& tool = player.getSelectedItem();
-
                 AggregatedBlockAction act;
-                // 方块已被破坏，无法获取原类型，记录为 "air"
-                act.blockType = "minecraft:air";
+                act.blockType = "minecraft:air"; // 方块已被破坏，记录空气
                 act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
                 act.action = "break";
                 act.count = 1;
@@ -62,14 +62,17 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
             } catch (...) {}
         }
     );
+    if (!destroyListener_) {
+        getLogger().error("Failed to register PlayerDestroyBlockEvent");
+    }
 
+    // 注册放置方块事件
     placedListener_ = bus.emplaceListener<ll::event::PlayerPlacedBlockEvent>(
-        [](ll::event::PlayerPlacedBlockEvent& ev) {
+        [this](ll::event::PlayerPlacedBlockEvent& ev) {
             try {
                 auto& player = ev.self();
                 Block const& block = ev.placedBlock();
                 ItemStack const& tool = player.getSelectedItem();
-
                 AggregatedBlockAction act;
                 act.blockType = block.getTypeName();
                 act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
@@ -84,14 +87,17 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
             } catch (...) {}
         }
     );
+    if (!placedListener_) {
+        getLogger().error("Failed to register PlayerPlacedBlockEvent");
+    }
 
+    // 注册交互方块事件
     interactListener_ = bus.emplaceListener<ll::event::PlayerInteractBlockEvent>(
-        [](ll::event::PlayerInteractBlockEvent& ev) {
+        [this](ll::event::PlayerInteractBlockEvent& ev) {
             try {
                 auto& player = ev.self();
                 if (auto block = ev.block()) {
                     auto& tool = ev.item();
-
                     AggregatedBlockAction act;
                     act.blockType = block->getTypeName();
                     act.toolType = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
@@ -107,6 +113,9 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
             } catch (...) {}
         }
     );
+    if (!interactListener_) {
+        getLogger().error("Failed to register PlayerInteractBlockEvent");
+    }
 }
 
 void EventListeners::unregisterAll(ll::event::EventBus& bus) {
@@ -115,5 +124,12 @@ void EventListeners::unregisterAll(ll::event::EventBus& bus) {
     bus.removeListener(destroyListener_);
     bus.removeListener(placedListener_);
     bus.removeListener(interactListener_);
+
+    // 重置指针，允许安全析构
+    joinListener_.reset();
+    disconnectListener_.reset();
+    destroyListener_.reset();
+    placedListener_.reset();
+    interactListener_.reset();
     logManager_ = nullptr;
 }
