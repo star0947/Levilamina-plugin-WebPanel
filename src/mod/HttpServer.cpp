@@ -4,16 +4,15 @@
 #include <filesystem>
 
 HttpServer::HttpServer(int port, LogManager& logMgr) : logMgr_(logMgr) {
-    // 设定静态文件根目录：data/web 路径
+    // 静态文件根目录
     std::string dataDir = Config::DATA_DIR.substr(0, Config::DATA_DIR.find_last_of("/\\"));
     std::string webDir = dataDir + "/web";
     if (!std::filesystem::exists(webDir)) {
         std::filesystem::create_directory(webDir);
     }
 
-    // 使用 pre_routing_handler 拦截根路径的 JSON 状态请求
+    // 预路由处理：对根路径且 Accept 为 application/json 的请求返回状态 JSON，避免被挂载点覆盖
     server_.set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
-        // 如果是根路径且 Accept 头包含 "application/json"，返回状态 JSON
         if (req.path == "/") {
             std::string accept = req.get_header_value("Accept");
             if (accept.find("application/json") != std::string::npos) {
@@ -21,11 +20,10 @@ HttpServer::HttpServer(int port, LogManager& logMgr) : logMgr_(logMgr) {
                 return httplib::Server::HandlerResponse::Handled;
             }
         }
-        // 其他请求继续正常路由（包括静态文件服务）
-        return httplib::Server::HandlerResponse::NextHandler;
+        return httplib::Server::HandlerResponse::Continue;  // 修改点：NextHandler → Continue
     });
 
-    // 静态文件挂载点
+    // 静态文件挂载
     server_.set_mount_point("/", webDir.c_str());
 
     // API 路由
