@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
   <title>Server WebPanel · 仪表盘</title>
-  <!-- 生产环境 Tailwind 建议本地构建，此处使用 CDN 仅作开发演示 -->
+  <!-- Tailwind CSS CDN (开发使用，生产环境建议本地化) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -239,7 +239,7 @@
     (function() {
       const BASE = '';
       const API = {
-        // 显式指定 Accept 头，避免被挂载点拦截
+        // 关键修复：显式指定 Accept 头，确保后端返回 JSON 而不是 HTML
         status: () => fetch(`${BASE}/`, {headers: {'Accept': 'application/json'}})
                     .then(r => {
                       if (!r.ok) throw new Error(`HTTP ${r.status}`);
