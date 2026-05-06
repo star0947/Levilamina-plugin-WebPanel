@@ -3,14 +3,8 @@
 #include <memory>
 #include "LogManager.h"
 
-// 前向声明钩子类
-struct DestroyBlockHook;
-
 class EventListeners {
 public:
-    EventListeners();
-    ~EventListeners();
-
     void registerAll(ll::event::EventBus& bus, LogManager& logManager);
     void unregisterAll(ll::event::EventBus& bus);
 
@@ -19,5 +13,5 @@ private:
     ll::event::ListenerPtr disconnectListener_;
     ll::event::ListenerPtr placedListener_;
     ll::event::ListenerPtr interactListener_;
-    DestroyBlockHook* destroyHook_ = nullptr;   // 手动管理
+    // 不再需要 DestroyBlockHook 指针，LL_AUTO_INSTANCE_HOOK 自动管理
 };
