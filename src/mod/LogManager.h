@@ -1,8 +1,11 @@
+// src/mod/LogManager.h
 #pragma once
 #include <unordered_map>
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
+#include <mutex>
 #include "PlayerActionLog.h"
 #include "mc/platform/UUID.h"
 
@@ -19,4 +22,5 @@ public:
 private:
     std::string baseDir_;
     std::unordered_map<mce::UUID, std::unique_ptr<PlayerActionLog>> logs_;
+    mutable std::mutex mutex_;
 };

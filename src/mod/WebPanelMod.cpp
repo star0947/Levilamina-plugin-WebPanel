@@ -6,6 +6,8 @@
 #include "ll/api/io/Logger.h"
 #include <filesystem>
 
+std::atomic<LogManager*> g_logManagerForHook(nullptr);
+
 static WebPanelMod& getMod() {
     static WebPanelMod instance;
     return instance;
@@ -16,6 +18,10 @@ static ll::mod::NativeMod& getSelf() {
 }
 
 LL_REGISTER_MOD(WebPanelMod, getMod());
+
+LogManager* WebPanelMod::getLogManagerInstance() {
+    return g_logManagerForHook.load();
+}
 
 bool WebPanelMod::load() {
     auto& self = getSelf();
@@ -30,9 +36,10 @@ bool WebPanelMod::enable() {
     auto& logger = self.getLogger();
 
     logManager_ = std::make_unique<LogManager>(Config::DATA_DIR);
+    g_logManagerForHook.store(logManager_.get());   // 设置全局指针供钩子使用
 
     auto& bus = ll::event::EventBus::getInstance();
-    eventListeners_.registerAll(bus, *logManager_);   // 改为实例调用
+    eventListeners_.registerAll(bus, *logManager_);
 
     httpServer_ = std::make_unique<HttpServer>(Config::HTTP_PORT, *logManager_);
     httpServer_->start();
@@ -50,7 +57,9 @@ bool WebPanelMod::disable() {
     }
 
     auto& bus = ll::event::EventBus::getInstance();
-    eventListeners_.unregisterAll(bus);   // 实例调用，清理监听器
+    eventListeners_.unregisterAll(bus);
+
+    g_logManagerForHook.store(nullptr);   // 清除全局指针
 
     if (logManager_) {
         logManager_->shutdown();
