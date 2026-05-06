@@ -13,5 +13,4 @@ private:
     ll::event::ListenerPtr disconnectListener_;
     ll::event::ListenerPtr placedListener_;
     ll::event::ListenerPtr interactListener_;
-    // 不再需要 DestroyBlockHook 指针，LL_AUTO_INSTANCE_HOOK 自动管理
 };
