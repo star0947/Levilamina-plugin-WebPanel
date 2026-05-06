@@ -6,15 +6,16 @@
 #include "ll/api/memory/Hook.h"
 #include "mc/world/actor/player/Player.h"
 #include "mc/world/gamemode/GameMode.h"
+#include "mc/world/gamemode/IGameModeMessenger.h"   // ← 新增：IGameModeMessenger 的完整定义
 #include "mc/world/level/block/Block.h"
 #include "mc/world/level/BlockPos.h"
 #include "mc/world/item/ItemStack.h"
 #include "ll/api/io/Logger.h"
 #include "ll/api/mod/NativeMod.h"
 #include "Config.h"
-#include <chrono>
-#include <optional>
-#include <atomic>
+#include <chrono>     // ← 补全：时间戳需要
+#include <optional>   // ← 补全：std::optional 返回值需要
+#include <atomic>     // ← 补全：std::atomic 需要
 
 // 全局 LogManager 指针，由 WebPanelMod::enable/disable 设置
 extern std::atomic<LogManager*> g_logManagerForHook;
@@ -67,7 +68,7 @@ EventListeners::~EventListeners() {
 }
 
 void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
-    // 注册加入/离开/放置/交互事件（和之前一样，但移除了 destroyListener）
+    // 注册加入/离开/放置/交互事件
     joinListener_ = bus.emplaceListener<ll::event::PlayerJoinEvent>(
         [&lm](ll::event::PlayerJoinEvent& ev) {
             try { lm.onPlayerJoin(ev.self().getUuid()); } catch (...) {}
