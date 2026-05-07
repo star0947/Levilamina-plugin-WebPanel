@@ -4,6 +4,7 @@
 #include "ll/api/event/player/PlayerPlaceBlockEvent.h"
 #include "ll/api/event/player/PlayerInteractBlockEvent.h"
 #include "ll/api/memory/Hook.h"
+#include "ll/api/memory/Memory.h"                          // unchecked 需要
 #include "ll/api/io/Logger.h"
 #include "ll/api/mod/NativeMod.h"
 
@@ -26,37 +27,41 @@
 // 全局 LogManager 指针（由 WebPanelMod 在 enable/disable 时设置）
 extern std::atomic<LogManager*> g_logManagerForHook;
 
-// === 方块破坏 Hook（手动注册） ===
-LL_INSTANCE_HOOK(
+// === 方块破坏 Hook（使用 LL_STATIC_HOOK，显式传递 self） ===
+LL_STATIC_HOOK(
     DestroyBlockHook,
     ll::memory::HookPriority::Normal,
-    &GameMode::_sendTryDestroyBlockEvent,
+    ll::memory::unchecked(&GameMode::_sendTryDestroyBlockEvent),
     ::std::optional<::ItemStack>,
+    const GameMode*   self,          // 原 const member function 的 this
     ::Block const&    block,
     ::BlockPos const& pos,
     ::ItemStack       itemBeforeEvent
 ) {
-    // this 实际是 const GameMode*，安全转型
-    const GameMode* gm = reinterpret_cast<const GameMode*>(this);
-    Player& player = gm->mPlayer;
+    // TypedStorage<8,8,Player&> 直接等价于 Player&
+    Player& player = self->mPlayer;
 
     if (auto* lm = g_logManagerForHook.load()) {
         try {
             ItemStack const& tool = player.getSelectedItem();
+
             AggregatedBlockAction act;
-            act.blockType = block.getTypeName();
+            act.blockType = block.getTypeName();      // 真实被破坏方块名
             act.toolType  = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
             act.action    = "break";
             act.count     = 1;
+
             auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
             act.firstTime = now;
             act.lastTime  = now;
             act.lastPos   = pos;
+
             lm->pushAction(player.getUuid(), act);
         } catch (...) {}
     }
-    return origin(block, pos, itemBeforeEvent);
+
+    return origin(self, block, pos, itemBeforeEvent);
 }
 
 static ll::io::Logger& getLogger() {
@@ -64,6 +69,7 @@ static ll::io::Logger& getLogger() {
 }
 
 void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
+    // 玩家加入
     joinListener_ = bus.emplaceListener<ll::event::PlayerJoinEvent>(
         [&lm](ll::event::PlayerJoinEvent& ev) {
             try { lm.onPlayerJoin(ev.self().getUuid()); } catch (...) {}
@@ -71,6 +77,7 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     );
     if (!joinListener_) getLogger().error("Failed to register PlayerJoinEvent");
 
+    // 玩家离开
     disconnectListener_ = bus.emplaceListener<ll::event::PlayerDisconnectEvent>(
         [&lm](ll::event::PlayerDisconnectEvent& ev) {
             try { lm.onPlayerLeave(ev.self().getUuid()); } catch (...) {}
@@ -78,6 +85,7 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     );
     if (!disconnectListener_) getLogger().error("Failed to register PlayerDisconnectEvent");
 
+    // 方块放置
     placedListener_ = bus.emplaceListener<ll::event::PlayerPlacedBlockEvent>(
         [&lm](ll::event::PlayerPlacedBlockEvent& ev) {
             try {
@@ -100,6 +108,7 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     );
     if (!placedListener_) getLogger().error("Failed to register PlayerPlacedBlockEvent");
 
+    // 方块交互
     interactListener_ = bus.emplaceListener<ll::event::PlayerInteractBlockEvent>(
         [&lm](ll::event::PlayerInteractBlockEvent& ev) {
             try {
@@ -122,7 +131,7 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     );
     if (!interactListener_) getLogger().error("Failed to register PlayerInteractBlockEvent");
 
-    // 注册方块破坏 Hook
+    // 启用方块破坏 Hook
     DestroyBlockHook::hook();
     getLogger().info("All event listeners and hooks registered successfully");
 }
@@ -132,11 +141,12 @@ void EventListeners::unregisterAll(ll::event::EventBus& bus) {
     bus.removeListener(disconnectListener_);
     bus.removeListener(placedListener_);
     bus.removeListener(interactListener_);
+
     joinListener_.reset();
     disconnectListener_.reset();
     placedListener_.reset();
     interactListener_.reset();
 
-    // 注销方块破坏 Hook
+    // 禁用方块破坏 Hook
     DestroyBlockHook::unhook();
 }
