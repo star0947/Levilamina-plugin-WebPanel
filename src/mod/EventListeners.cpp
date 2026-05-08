@@ -4,7 +4,6 @@
 #include "ll/api/event/player/PlayerPlaceBlockEvent.h"
 #include "ll/api/event/player/PlayerInteractBlockEvent.h"
 #include "ll/api/memory/Hook.h"
-#include "ll/api/memory/Memory.h"                          // unchecked 需要
 #include "ll/api/io/Logger.h"
 #include "ll/api/mod/NativeMod.h"
 
@@ -24,29 +23,29 @@
 #include <atomic>
 #include <optional>
 
-// 全局 LogManager 指针（由 WebPanelMod 在 enable/disable 时设置）
+// 全局 LogManager 指针
 extern std::atomic<LogManager*> g_logManagerForHook;
 
-// === 方块破坏 Hook（使用 LL_STATIC_HOOK，显式传递 self） ===
-LL_STATIC_HOOK(
+// === 方块破坏 Hook（LL_TYPE_INSTANCE_HOOK + 哑元构造函数） ===
+LL_TYPE_INSTANCE_HOOK(
     DestroyBlockHook,
     ll::memory::HookPriority::Normal,
-    ll::memory::unchecked(&GameMode::_sendTryDestroyBlockEvent),
+    GameMode,
+    &GameMode::_sendTryDestroyBlockEvent,
     ::std::optional<::ItemStack>,
-    const GameMode*   self,          // 原 const member function 的 this
     ::Block const&    block,
     ::BlockPos const& pos,
     ::ItemStack       itemBeforeEvent
 ) {
-    // TypedStorage<8,8,Player&> 直接等价于 Player&
-    Player& player = self->mPlayer;
+    // mPlayer 是 GameMode 的公共成员，TypedStorage<8,8,Player&> 直接等于 Player&
+    Player& player = mPlayer;
 
     if (auto* lm = g_logManagerForHook.load()) {
         try {
             ItemStack const& tool = player.getSelectedItem();
 
             AggregatedBlockAction act;
-            act.blockType = block.getTypeName();      // 真实被破坏方块名
+            act.blockType = block.getTypeName();      // 真正的被破坏方块名
             act.toolType  = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
             act.action    = "break";
             act.count     = 1;
@@ -61,7 +60,7 @@ LL_STATIC_HOOK(
         } catch (...) {}
     }
 
-    return origin(self, block, pos, itemBeforeEvent);
+    return origin(block, pos, itemBeforeEvent);
 }
 
 static ll::io::Logger& getLogger() {
