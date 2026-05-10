@@ -8,12 +8,13 @@
 #include "mc/platform/UUID.h"
 #include "mc/entity/components/MobEffectsComponent.h"
 #include "mc/world/effect/MobEffectInstance.h"
+#include "mc/world/attribute/AttributeInstanceConstRef.h" // 新增
+#include "mc/world/attribute/AttributeInstance.h"         // 新增（确保完整类型）
 #include <future>
 #include <string>
 
 // 辅助函数：解析玩家名/UUID -> UUID
 static bool resolveUuid(const std::string& id, mce::UUID& outUuid) {
-    // 尝试在线玩家
     auto level = ll::service::getLevel();
     if (level) {
         bool found = false;
@@ -27,13 +28,11 @@ static bool resolveUuid(const std::string& id, mce::UUID& outUuid) {
         });
         if (found) return true;
     }
-    // 离线玩家使用 PlayerInfo
     auto& info = ll::service::PlayerInfo::getInstance();
     if (auto entry = info.fromName(id); entry) {
         outUuid = entry->uuid;
         return true;
     }
-    // 直接当作 UUID 字符串解析
     outUuid = mce::UUID(id);
     return (bool)outUuid;
 }
@@ -107,7 +106,7 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
 
     ll::thread::ServerThreadExecutor::getDefault().execute([&]() {
         nlohmann::json status;
-        status["error"] = "player not found"; // 默认错误
+        status["error"] = "player not found";
 
         auto level = ll::service::getLevel();
         if (!level) {
@@ -115,7 +114,6 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
             return;
         }
 
-        // 查找在线玩家
         Player* foundPlayer = nullptr;
         level->forEachPlayer([&](Player& p) {
             if (p.getRealName() == id || p.getUuid().asString() == id) {
@@ -132,28 +130,31 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
 
         Player& player = *foundPlayer;
         status.clear();
-        status["name"]        = player.getRealName();
-        status["uuid"]        = player.getUuid().asString();
-        status["health"]      = player.getHealth();
-        status["max_health"]  = player.getMaxHealth();
-        status["hunger"]      = player.getAttribute(Player::HUNGER()).mPtr->getCurrentValue();
-        status["saturation"]  = player.getAttribute(Player::SATURATION()).mPtr->getCurrentValue();
-        status["experience"]  = player.getAttribute(Player::EXPERIENCE()).mPtr->getCurrentValue();
-        status["level"]       = static_cast<int>(player.getAttribute(Player::LEVEL()).mPtr->getCurrentValue());
-        status["dimension"]   = static_cast<int>(player.getDimensionId());
-        auto pos = player.getPosition();
-        status["position"]    = {pos.x, pos.y, pos.z};
-        status["gamemode"]    = static_cast<int>(player.getPlayerGameType());
+        status["name"]       = player.getRealName();
+        status["uuid"]       = player.getUuid().asString();
+        status["health"]     = player.getHealth();
+        status["max_health"] = player.getMaxHealth();
 
-        // 药水效果
-        auto* comp = player.getEntityContext().tryGetComponent<MobEffectsComponent>();
+        // 属性读取：直接访问 mPtr->mCurrentValue
+        status["hunger"]     = player.getAttribute(Player::HUNGER()).mPtr->mCurrentValue;
+        status["saturation"] = player.getAttribute(Player::SATURATION()).mPtr->mCurrentValue;
+        status["experience"] = player.getAttribute(Player::EXPERIENCE()).mPtr->mCurrentValue;
+        status["level"]      = static_cast<int>(player.getAttribute(Player::LEVEL()).mPtr->mCurrentValue);
+
+        status["dimension"]  = static_cast<int>(player.getDimensionId());
+        auto pos = player.getPosition();
+        status["position"]   = {pos.x, pos.y, pos.z};
+        status["gamemode"]   = static_cast<int>(player.getPlayerGameType());
+
+        // 药水效果：optional_ref 用法修正
+        auto comp = player.getEntityContext().tryGetComponent<MobEffectsComponent>();
         auto& effects = status["effects"] = nlohmann::json::array();
         if (comp) {
-            for (auto const& eff : comp->mMobEffects) {
+            for (auto const& effect : comp->mMobEffects) {
                 effects.push_back({
-                    {"id", eff.getId()},
-                    {"amplifier", eff.getAmplifier()},
-                    {"duration", eff.getDuration()}
+                    {"id",        effect.mId},
+                    {"amplifier", effect.mAmplifier},
+                    {"duration",  effect.mDuration.mValue} // tick count
                 });
             }
         }
@@ -189,11 +190,11 @@ void ApiHandlers::getPlayerDeaths(const httplib::Request& req, httplib::Response
     auto& deaths = result["deaths"] = nlohmann::json::array();
     for (auto const& r : records) {
         deaths.push_back({
-            {"time", r.timestamp},
+            {"time",      r.timestamp},
             {"dimension", r.dimId},
-            {"position", {r.x, r.y, r.z}},
-            {"cause", r.causeName},
-            {"attacker", r.attackerName}
+            {"position",  {r.x, r.y, r.z}},
+            {"cause",     r.causeName},
+            {"attacker",  r.attackerName}
         });
     }
     if (!records.empty()) {
