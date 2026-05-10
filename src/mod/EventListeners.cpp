@@ -3,6 +3,7 @@
 #include "ll/api/event/player/PlayerDisconnectEvent.h"
 #include "ll/api/event/player/PlayerPlaceBlockEvent.h"
 #include "ll/api/event/player/PlayerInteractBlockEvent.h"
+#include "ll/api/event/player/PlayerDieEvent.h"       // 新增
 #include "ll/api/memory/Hook.h"
 #include "ll/api/memory/Memory.h"
 #include "ll/api/io/Logger.h"
@@ -15,6 +16,10 @@
 #include "mc/world/level/block/Block.h"
 #include "mc/world/level/BlockPos.h"
 #include "mc/world/item/ItemStack.h"
+#include "mc/world/actor/ActorDamageSource.h"          // 新增
+#include "mc/deps/shared_types/legacy/actor/ActorDamageCause.h" // 新增
+#include "mc/world/level/Level.h"                       // 新增：fetchEntity
+#include "mc/world/level/dimension/Dimension.h"         // 新增：维度信息
 
 #include "Config.h"
 #include "LogManager.h"
@@ -85,7 +90,7 @@ std::optional<ItemStack> GameModeHookProxy::detour(
 }
 
 // ===== 普通事件监听 =====
-void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
+void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm, DeathLogger& dl) {
     // 玩家加入
     joinListener_ = bus.emplaceListener<ll::event::PlayerJoinEvent>(
         [&lm](ll::event::PlayerJoinEvent& ev) {
@@ -148,6 +153,38 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     );
     if (!interactListener_) getLogger().error("Failed to register PlayerInteractBlockEvent");
 
+    // 死亡事件 -------------------------------
+    dieListener_ = bus.emplaceListener<ll::event::PlayerDieEvent>(
+        [&dl](ll::event::PlayerDieEvent& ev) {
+            try {
+                auto& player = ev.self();
+                auto& source = ev.source();
+
+                DeathRecord rec;
+                rec.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                rec.dimId = static_cast<int>(player.getDimensionId());
+                auto pos = player.getPosition();
+                rec.x = pos.x; rec.y = pos.y; rec.z = pos.z;
+
+                // 伤害原因字符串
+                rec.causeName = ActorDamageSource::lookupCauseName(source.mCause);
+
+                // 攻击者（如果是实体伤害）
+                if (source.isEntitySource()) {
+                    ActorUniqueID uid = source.getEntityUniqueID();
+                    Actor* attacker = player.getLevel().fetchEntity(uid, false);
+                    if (attacker) {
+                        rec.attackerName = attacker->getTypeName();
+                    }
+                }
+
+                dl.addRecord(player.getUuid(), rec);
+            } catch (...) {}
+        }
+    );
+    if (!dieListener_) getLogger().error("Failed to register PlayerDieEvent");
+
     // 原始 Hook：安装方块破坏 Hook
     ll::memory::FuncPtr target = ll::memory::toFuncPtr(&GameMode::_sendTryDestroyBlockEvent);
     ll::memory::FuncPtr detour = ll::memory::toFuncPtr(&GameModeHookProxy::detour);
@@ -160,11 +197,13 @@ void EventListeners::unregisterAll(ll::event::EventBus& bus) {
     bus.removeListener(disconnectListener_);
     bus.removeListener(placedListener_);
     bus.removeListener(interactListener_);
+    bus.removeListener(dieListener_);     // 新增
 
     joinListener_.reset();
     disconnectListener_.reset();
     placedListener_.reset();
     interactListener_.reset();
+    dieListener_.reset();                 // 新增
 
     // 卸载方块破坏 Hook
     ll::memory::FuncPtr target = ll::memory::toFuncPtr(&GameMode::_sendTryDestroyBlockEvent);

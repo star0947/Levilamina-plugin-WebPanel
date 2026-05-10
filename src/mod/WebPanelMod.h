@@ -4,6 +4,7 @@
 #include "EventListeners.h"
 #include "LogManager.h"
 #include "HttpServer.h"
+#include "DeathLogger.h"
 
 class WebPanelMod {
 public:
@@ -11,13 +12,9 @@ public:
     bool enable();
     bool disable();
 
-    // 供钩子访问
-    static LogManager* getLogManagerInstance();
-
 private:
     std::unique_ptr<LogManager> logManager_;
+    std::unique_ptr<DeathLogger> deathLogger_;       // 新增
     std::unique_ptr<HttpServer> httpServer_;
     EventListeners eventListeners_;
-
-    static std::atomic<LogManager*> s_logManagerForHook;
 };
