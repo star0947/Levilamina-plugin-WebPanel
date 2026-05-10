@@ -8,8 +8,8 @@
 #include "mc/platform/UUID.h"
 #include "mc/entity/components/MobEffectsComponent.h"
 #include "mc/world/effect/MobEffectInstance.h"
-#include "mc/world/attribute/AttributeInstanceConstRef.h" // 新增
-#include "mc/world/attribute/AttributeInstance.h"         // 新增（确保完整类型）
+#include "mc/world/attribute/AttributeInstanceConstRef.h"
+#include "mc/world/attribute/AttributeInstance.h"
 #include <future>
 #include <string>
 
@@ -146,11 +146,11 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
         status["position"]   = {pos.x, pos.y, pos.z};
         status["gamemode"]   = static_cast<int>(player.getPlayerGameType());
 
-        // 药水效果：optional_ref 用法修正
+        // 药水效果：通过 .get() 获取底层 vector 引用
         auto comp = player.getEntityContext().tryGetComponent<MobEffectsComponent>();
         auto& effects = status["effects"] = nlohmann::json::array();
         if (comp) {
-            for (auto const& effect : comp->mMobEffects) {
+            for (auto const& effect : comp->mMobEffects.get()) {   // 修复点：.get()
                 effects.push_back({
                     {"id",        effect.mId},
                     {"amplifier", effect.mAmplifier},
