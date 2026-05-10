@@ -13,7 +13,6 @@
 #include <future>
 #include <string>
 
-// 辅助函数：解析玩家名/UUID -> UUID
 static bool resolveUuid(const std::string& id, mce::UUID& outUuid) {
     auto level = ll::service::getLevel();
     if (level) {
@@ -37,7 +36,7 @@ static bool resolveUuid(const std::string& id, mce::UUID& outUuid) {
     return (bool)outUuid;
 }
 
-void ApiHandlers::getPlayers(const httplib::Request& req, httplib::Response& res, LogManager&) {
+void ApiHandlers::getPlayers(const httplib::Request& /*req*/, httplib::Response& res, LogManager&) {
     std::promise<std::string> promise;
     auto future = promise.get_future();
     ll::thread::ServerThreadExecutor::getDefault().execute([&promise]() {
@@ -135,7 +134,6 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
         status["health"]     = player.getHealth();
         status["max_health"] = player.getMaxHealth();
 
-        // 属性读取：直接访问 mPtr->mCurrentValue
         status["hunger"]     = player.getAttribute(Player::HUNGER()).mPtr->mCurrentValue;
         status["saturation"] = player.getAttribute(Player::SATURATION()).mPtr->mCurrentValue;
         status["experience"] = player.getAttribute(Player::EXPERIENCE()).mPtr->mCurrentValue;
@@ -146,15 +144,14 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
         status["position"]   = {pos.x, pos.y, pos.z};
         status["gamemode"]   = static_cast<int>(player.getPlayerGameType());
 
-        // 药水效果：通过 .get() 获取底层 vector 引用
         auto comp = player.getEntityContext().tryGetComponent<MobEffectsComponent>();
         auto& effects = status["effects"] = nlohmann::json::array();
         if (comp) {
-            for (auto const& effect : comp->mMobEffects.get()) {   // 修复点：.get()
+            for (auto const& effect : comp->mMobEffects.get()) {
                 effects.push_back({
                     {"id",        effect.mId},
                     {"amplifier", effect.mAmplifier},
-                    {"duration",  effect.mDuration.mValue} // tick count
+                    {"duration",  effect.mDuration.get().mValue}  // 修正：TypedStorageImpl 需要 .get()
                 });
             }
         }
