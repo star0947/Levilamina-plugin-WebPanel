@@ -2,9 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Server WebPanel · 仪表盘</title>
-  <!-- Tailwind CSS CDN (开发使用，生产环境建议本地化) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -34,11 +33,11 @@
     }
     .custom-scroll::-webkit-scrollbar { width: 4px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 2px; }
+    .modal-overlay { background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
   </style>
 </head>
 <body class="bg-gray-950 text-gray-100 font-sans antialiased min-h-screen flex flex-col">
-
-  <!-- ========= 顶部导航栏 ========= -->
+  <!-- 顶部导航 -->
   <header class="bg-gray-900/80 backdrop-blur-md border-b border-gray-800 sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -49,17 +48,15 @@
         </div>
         <h1 class="text-lg font-semibold tracking-tight">Server<span class="text-emerald-400">Panel</span></h1>
       </div>
-
-      <div class="flex items-center gap-4 sm:gap-6">
+      <div class="flex items-center gap-4">
         <div class="flex items-center gap-2">
           <span id="status-dot" class="relative flex h-3 w-3">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
           </span>
-          <span id="status-text" class="text-sm text-gray-300 hidden sm:inline">检测中…</span>
+          <span id="status-text" class="text-sm hidden sm:inline">检测中…</span>
         </div>
-        <span id="last-refresh" class="text-xs text-gray-500 hidden sm:inline">--</span>
-        <button id="refresh-btn" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" title="刷新全部数据">
+        <button id="refresh-btn" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition" title="刷新">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
@@ -68,508 +65,367 @@
     </div>
   </header>
 
-  <!-- ========= 主内容区域 ========= -->
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-      <!-- 卡片1：服务器状态 -->
-      <section class="lg:col-span-3 bg-gray-900/70 backdrop-blur-sm rounded-2xl border border-gray-800 p-5 shadow-xl">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 class="text-xl font-bold flex items-center gap-2">
-            <svg class="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" />
-            </svg>
-            服务器状态
-          </h2>
-          <div id="server-status-loading" class="flex items-center gap-3">
-            <div class="animate-pulse flex space-x-2">
-              <div class="h-4 w-16 bg-gray-700 rounded"></div>
-              <div class="h-4 w-20 bg-gray-700 rounded"></div>
-            </div>
+      <!-- 服务器状态 -->
+      <section class="lg:col-span-3 bg-gray-900/70 rounded-2xl border border-gray-800 p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <h2 class="text-xl font-bold flex items-center gap-2"><span class="text-emerald-400">📡</span> 服务器状态</h2>
+          <div id="server-status-content" class="hidden flex items-center gap-6">
+            <span class="text-sm"><span class="text-gray-400">状态：</span><span id="server-badge" class="px-2 py-0.5 rounded-full text-xs bg-emerald-900 text-emerald-300">运行中</span></span>
+            <span class="text-sm"><span class="text-gray-400">玩家：</span><span id="player-count" class="font-semibold">0</span> 人</span>
           </div>
-          <div id="server-status-content" class="hidden flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-400">状态</span>
-              <span id="server-status-badge" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-900 text-emerald-300">运行中</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-400">玩家</span>
-              <span id="player-count-display" class="text-lg font-semibold tabular-nums">-</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-400">最后检查</span>
-              <span id="server-time-display" class="text-sm text-gray-300">-</span>
-            </div>
-          </div>
+          <div id="server-status-loading" class="animate-pulse text-sm text-gray-500">加载中...</div>
         </div>
       </section>
 
-      <!-- 卡片2：在线玩家列表 -->
-      <section class="lg:col-span-1 bg-gray-900/70 backdrop-blur-sm rounded-2xl border border-gray-800 p-5 shadow-xl flex flex-col">
+      <!-- 在线玩家 -->
+      <section class="lg:col-span-1 bg-gray-900/70 rounded-2xl border border-gray-800 p-5 shadow-xl flex flex-col">
         <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-bold flex items-center gap-2">
-            <svg class="w-5 h-5 text-sky-400" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-            </svg>
-            在线玩家
-          </h2>
-          <span id="online-count-badge" class="bg-gray-800 text-xs font-mono px-2 py-0.5 rounded-full text-gray-300">0</span>
+          <h3 class="text-lg font-bold flex items-center gap-2"><span class="text-sky-400">👥</span> 在线玩家</h3>
+          <span id="online-count-badge" class="bg-gray-800 text-xs px-2 py-0.5 rounded-full">0</span>
         </div>
-
-        <div id="players-loading" class="flex-1 flex items-center justify-center">
-          <div class="animate-pulse flex flex-col items-center gap-3 w-full">
-            <div class="h-4 w-3/4 bg-gray-800 rounded"></div>
-            <div class="h-4 w-1/2 bg-gray-800 rounded"></div>
-            <div class="h-4 w-2/3 bg-gray-800 rounded"></div>
-          </div>
-        </div>
-
-        <div id="players-error" class="hidden flex-1 flex items-center justify-center text-red-400 text-sm gap-2">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-          <span id="players-error-msg">无法加载玩家列表</span>
-        </div>
-
-        <div id="players-empty" class="hidden flex-1 flex items-center justify-center text-gray-500 text-sm">
-          暂无在线玩家
-        </div>
-
-        <ul id="players-list" class="hidden flex-1 space-y-2 overflow-y-auto max-h-72 pr-1 custom-scroll">
-        </ul>
-        <div class="mt-2 text-xs text-gray-500 text-right" id="players-footer"></div>
+        <div id="players-loading" class="animate-pulse space-y-2"><div class="h-4 bg-gray-700 rounded w-3/4"></div><div class="h-4 bg-gray-700 rounded w-1/2"></div></div>
+        <div id="players-error" class="hidden text-red-400 text-sm">加载失败</div>
+        <div id="players-empty" class="hidden text-gray-500 text-sm">暂无玩家在线</div>
+        <ul id="players-list" class="hidden space-y-2 overflow-y-auto max-h-80 pr-1 custom-scroll"></ul>
       </section>
 
-      <!-- 卡片3：玩家动作日志查询 -->
-      <section class="lg:col-span-2 bg-gray-900/70 backdrop-blur-sm rounded-2xl border border-gray-800 p-5 shadow-xl flex flex-col">
-        <h2 class="text-lg font-bold flex items-center gap-2 mb-3">
-          <svg class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd" />
-          </svg>
-          方块操作日志
-        </h2>
-
-        <div class="flex flex-col sm:flex-row gap-2 mb-4">
-          <div class="relative flex-grow">
-            <input type="text" id="log-player-input" placeholder="输入玩家名或 UUID ..." autocomplete="off"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 pr-10 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition" />
-            <button id="log-search-btn" class="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 transition" title="查询日志">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
+      <!-- 日志与死亡 -->
+      <section class="lg:col-span-2 space-y-5">
+        <!-- 方块日志 -->
+        <div class="bg-gray-900/70 rounded-2xl border border-gray-800 p-5 shadow-xl">
+          <h3 class="text-lg font-bold flex items-center gap-2 mb-3"><span class="text-amber-400">⛏️</span> 方块操作日志</h3>
+          <div class="flex gap-2 mb-4">
+            <input type="text" id="log-player-input" placeholder="玩家名或UUID" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" />
+            <button id="log-search-btn" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-sm">查询</button>
+            <button id="log-clear-btn" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-400">清除</button>
           </div>
-          <button id="log-clear-btn" class="px-3 py-2 text-xs bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 transition flex items-center gap-1">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-            清除
-          </button>
-        </div>
-
-        <div id="log-initial" class="flex-1 flex items-center justify-center text-gray-500 text-sm py-8">
-          输入玩家名查看方块破坏/放置记录
-        </div>
-
-        <div id="log-loading" class="hidden flex-1 flex items-center justify-center py-8">
-          <div class="animate-spin rounded-full h-8 w-8 border-2 border-amber-400 border-t-transparent"></div>
-        </div>
-
-        <div id="log-error" class="hidden flex-1 flex items-center justify-center text-red-400 text-sm gap-2 py-8">
-          <span id="log-error-msg">查询失败</span>
-        </div>
-
-        <div id="log-empty" class="hidden flex-1 flex items-center justify-center text-gray-500 text-sm py-8">
-          该玩家没有方块操作记录
-        </div>
-
-        <div id="log-content" class="hidden flex-1 flex flex-col">
-          <div class="text-xs text-gray-400 mb-2 flex justify-between">
-            <span id="log-player-name" class="font-semibold text-gray-200"></span>
-            <span id="log-total-hint"></span>
-          </div>
-          <div class="overflow-x-auto border border-gray-800 rounded-lg max-h-96 overflow-y-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="text-xs uppercase bg-gray-800 text-gray-400 sticky top-0">
-                <tr>
-                  <th class="px-3 py-2">操作</th>
-                  <th class="px-3 py-2">方块</th>
-                  <th class="px-3 py-2">工具</th>
-                  <th class="px-3 py-2">次数</th>
-                  <th class="px-3 py-2">最后坐标</th>
-                  <th class="px-3 py-2">最后时间</th>
-                </tr>
-              </thead>
-              <tbody id="log-table-body" class="divide-y divide-gray-800">
-              </tbody>
-            </table>
-          </div>
-          <div class="flex items-center justify-between mt-3">
-            <span id="log-cursor-info" class="text-xs text-gray-500"></span>
-            <button id="log-load-more-btn" class="hidden px-4 py-1.5 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-              加载更多
-            </button>
+          <div id="log-initial" class="text-gray-500 text-sm text-center py-8">输入玩家名查看方块破坏/放置记录</div>
+          <div id="log-loading" class="hidden justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-2 border-amber-400 border-t-transparent"></div></div>
+          <div id="log-error" class="hidden text-red-400 text-sm py-4">查询失败</div>
+          <div id="log-empty" class="hidden text-gray-500 text-sm py-4">没有记录</div>
+          <div id="log-content" class="hidden">
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
+              <table class="w-full text-sm">
+                <thead class="text-xs uppercase bg-gray-800 text-gray-400 sticky top-0">
+                  <tr><th class="px-3 py-2">操作</th><th class="px-3 py-2">方块</th><th class="px-3 py-2">工具</th><th class="px-3 py-2">次数</th><th class="px-3 py-2">坐标</th><th class="px-3 py-2">时间</th></tr>
+                </thead>
+                <tbody id="log-table-body" class="divide-y divide-gray-800"></tbody>
+              </table>
+            </div>
+            <div class="flex justify-between mt-3">
+              <span id="log-cursor-info" class="text-xs text-gray-500"></span>
+              <button id="log-load-more-btn" class="hidden px-3 py-1 text-xs bg-amber-600 hover:bg-amber-500 rounded">加载更多</button>
+            </div>
           </div>
         </div>
-      </section>
 
-      <!-- 预留卡片 -->
-      <section class="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
-        <div class="bg-gray-900/50 border border-dashed border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-gray-600">
-          <svg class="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-          <span class="text-sm">玩家属性</span>
-          <span class="text-xs text-gray-700 mt-1">生命/饥饿/经验 (开发中)</span>
-        </div>
-        <div class="bg-gray-900/50 border border-dashed border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-gray-600">
-          <svg class="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-          <span class="text-sm">背包查看器</span>
-          <span class="text-xs text-gray-700 mt-1">主背包 / 末影箱</span>
-        </div>
-        <div class="bg-gray-900/50 border border-dashed border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-gray-600">
-          <svg class="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <span class="text-sm">全局日志</span>
-          <span class="text-xs text-gray-700 mt-1">服务器日志类型 (计划)</span>
+        <!-- 死亡历史 -->
+        <div class="bg-gray-900/70 rounded-2xl border border-gray-800 p-5 shadow-xl">
+          <h3 class="text-lg font-bold flex items-center gap-2 mb-3"><span class="text-red-400">💀</span> 死亡历史</h3>
+          <div class="flex gap-2 mb-4">
+            <input type="text" id="death-player-input" placeholder="玩家名或UUID" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" />
+            <button id="death-search-btn" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm">查询</button>
+            <button id="death-clear-btn" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-400">清除</button>
+          </div>
+          <div id="death-initial" class="text-gray-500 text-sm text-center py-8">输入玩家名查看死亡记录</div>
+          <div id="death-loading" class="hidden justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-2 border-red-400 border-t-transparent"></div></div>
+          <div id="death-error" class="hidden text-red-400 text-sm py-4">查询失败</div>
+          <div id="death-empty" class="hidden text-gray-500 text-sm py-4">没有死亡记录</div>
+          <div id="death-content" class="hidden">
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
+              <table class="w-full text-sm">
+                <thead class="text-xs uppercase bg-gray-800 text-gray-400 sticky top-0">
+                  <tr><th class="px-3 py-2">时间</th><th class="px-3 py-2">维度</th><th class="px-3 py-2">坐标</th><th class="px-3 py-2">死因</th><th class="px-3 py-2">攻击者</th></tr>
+                </thead>
+                <tbody id="death-table-body" class="divide-y divide-gray-800"></tbody>
+              </table>
+            </div>
+            <div class="flex justify-between mt-3">
+              <span id="death-cursor-info" class="text-xs text-gray-500"></span>
+              <button id="death-load-more-btn" class="hidden px-3 py-1 text-xs bg-red-600 hover:bg-red-500 rounded">加载更多</button>
+            </div>
+          </div>
         </div>
       </section>
     </div>
   </main>
 
-  <footer class="text-center text-xs text-gray-600 py-4 border-t border-gray-800">
-    WebPanel Dashboard · API v1.8.0 · 数据实时更新
-  </footer>
+  <!-- 状态模态框 -->
+  <div id="status-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-lg shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold" id="modal-player-name">玩家状态</h3>
+        <button id="close-modal" class="text-gray-400 hover:text-white p-1">&times;</button>
+      </div>
+      <div id="modal-content" class="space-y-2 text-sm"></div>
+    </div>
+  </div>
 
-  <!-- ========= 核心脚本 ========= -->
   <script>
     (function() {
       const BASE = '';
+      const LOG = (...args) => console.log('[WebPanel]', ...args);
+      const ERR = (...args) => console.error('[WebPanel]', ...args);
+
       const API = {
-        // 关键修复：显式指定 Accept 头，确保后端返回 JSON 而不是 HTML
-        status: () => fetch(`${BASE}/`, {headers: {'Accept': 'application/json'}})
-                    .then(r => {
-                      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                      return r.json();
-                    })
-                    .catch(e => { console.error('状态请求失败:', e); return null; }),
-        players: () => fetch(`${BASE}/api/players`).then(r => r.json()).catch(e => { console.error('玩家列表请求失败:', e); return null; }),
-        playerActions: (nameOrUuid, limit = 20, before = 0) => {
-          const params = new URLSearchParams({ type: 'block', limit });
-          if (before) params.set('before', before);
-          return fetch(`${BASE}/api/player/${encodeURIComponent(nameOrUuid)}/actions?${params}`)
-            .then(r => {
-              if (!r.ok) throw new Error(`HTTP ${r.status}`);
-              return r.json();
-            })
-            .catch(e => { console.error('日志请求失败:', e); throw e; });
+        status: () => fetch(`${BASE}/`, {headers: {'Accept': 'application/json'}}).then(r => r.json()).catch(e => { ERR('status fetch failed', e); return null; }),
+        players: () => fetch(`${BASE}/api/players`).then(r => r.json()).catch(e => { ERR('players fetch failed', e); return null; }),
+        playerActions: (id, limit=20, before=0) => {
+          const p = new URLSearchParams({type:'block', limit});
+          if(before) p.set('before', before);
+          return fetch(`${BASE}/api/player/${encodeURIComponent(id)}/actions?${p}`).then(r => {
+            if(!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          }).catch(e => { ERR('actions fetch failed', e); throw e; });
+        },
+        playerStatus: (id) => fetch(`${BASE}/api/player/${encodeURIComponent(id)}/status`).then(r => {
+          if(!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }).catch(e => { ERR('status fetch failed', e); throw e; }),
+        playerDeaths: (id, limit=20, before=0) => {
+          const p = new URLSearchParams({limit});
+          if(before) p.set('before', before);
+          return fetch(`${BASE}/api/player/${encodeURIComponent(id)}/deaths?${p}`).then(r => {
+            if(!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          }).catch(e => { ERR('deaths fetch failed', e); throw e; });
         }
       };
 
+      // UI元素引用
       const $ = (sel) => document.querySelector(sel);
-
       const statusDot = $('#status-dot');
       const statusText = $('#status-text');
-      const lastRefreshSpan = $('#last-refresh');
-      const serverStatusLoading = $('#server-status-loading');
       const serverStatusContent = $('#server-status-content');
-      const serverStatusBadge = $('#server-status-badge');
-      const playerCountDisplay = $('#player-count-display');
-      const serverTimeDisplay = $('#server-time-display');
-
+      const serverStatusLoading = $('#server-status-loading');
+      const serverBadge = $('#server-badge');
+      const playerCountEl = $('#player-count');
       const playersLoading = $('#players-loading');
       const playersError = $('#players-error');
-      const playersErrorMsg = $('#players-error-msg');
       const playersEmpty = $('#players-empty');
       const playersList = $('#players-list');
       const onlineCountBadge = $('#online-count-badge');
-      const playersFooter = $('#players-footer');
-
-      const logInput = $('#log-player-input');
+      const logPlayerInput = $('#log-player-input');
       const logSearchBtn = $('#log-search-btn');
       const logClearBtn = $('#log-clear-btn');
       const logInitial = $('#log-initial');
       const logLoading = $('#log-loading');
       const logError = $('#log-error');
-      const logErrorMsg = $('#log-error-msg');
       const logEmpty = $('#log-empty');
       const logContent = $('#log-content');
-      const logPlayerName = $('#log-player-name');
-      const logTotalHint = $('#log-total-hint');
       const logTableBody = $('#log-table-body');
-      const logCursorInfo = $('#log-cursor-info');
       const logLoadMoreBtn = $('#log-load-more-btn');
+      const deathPlayerInput = $('#death-player-input');
+      const deathSearchBtn = $('#death-search-btn');
+      const deathClearBtn = $('#death-clear-btn');
+      const deathInitial = $('#death-initial');
+      const deathLoading = $('#death-loading');
+      const deathError = $('#death-error');
+      const deathEmpty = $('#death-empty');
+      const deathContent = $('#death-content');
+      const deathTableBody = $('#death-table-body');
+      const deathLoadMoreBtn = $('#death-load-more-btn');
+      const statusModal = $('#status-modal');
+      const modalPlayerName = $('#modal-player-name');
+      const modalContent = $('#modal-content');
 
-      let currentLogPlayer = null;
-      let currentLogCursor = null;
+      function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-      function formatTime(ms) {
-        if (!ms) return '--';
-        return new Date(ms).toLocaleString('zh-CN', { hour12: false });
-      }
-
-      function timeAgo(ms) {
-        if (!ms) return '';
-        const seconds = Math.floor((Date.now() - ms) / 1000);
-        if (seconds < 60) return `${seconds}秒前`;
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `${minutes}分钟前`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}小时前`;
-        return `${Math.floor(hours/24)}天前`;
-      }
-
-      function show(el) { if (el) el.classList.remove('hidden'); }
-      function hide(el) { if (el) el.classList.add('hidden'); }
-      function hideAll(...elements) { elements.forEach(hide); }
-
-      function updateRefreshTime() {
-        const now = new Date();
-        if (lastRefreshSpan) lastRefreshSpan.textContent = `更新于 ${now.toLocaleTimeString('zh-CN')}`;
-      }
-
-      function setConnectionStatus(online) {
-        if (online) {
-          statusDot.innerHTML = `<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>`;
-          statusText.textContent = '已连接';
-          statusText.classList.remove('text-red-400');
-          statusText.classList.add('text-gray-300');
-        } else {
-          statusDot.innerHTML = `<span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>`;
-          statusText.textContent = '离线';
-          statusText.classList.add('text-red-400');
-          statusText.classList.remove('text-gray-300');
-        }
-      }
-
-      async function fetchServerStatus() {
-        show(serverStatusLoading);
-        hide(serverStatusContent);
-        console.log('正在获取服务器状态...');
+      // 服务器状态
+      async function refreshStatus() {
         const data = await API.status();
-        console.log('服务器状态响应:', data);
-        hide(serverStatusLoading);
+        serverStatusLoading.classList.add('hidden');
+        serverStatusContent.classList.remove('hidden');
         if (data && data.status === 'running') {
-          setConnectionStatus(true);
-          show(serverStatusContent);
-          serverStatusBadge.textContent = '运行中';
-          serverStatusBadge.className = 'px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-900 text-emerald-300';
-          serverTimeDisplay.textContent = new Date().toLocaleTimeString('zh-CN');
+          statusDot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>';
+          statusText.textContent = '已连接';
+          statusText.className = 'text-sm text-gray-300 hidden sm:inline';
+          serverBadge.textContent = '运行中';
+          serverBadge.className = 'px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-900 text-emerald-300';
         } else {
-          setConnectionStatus(false);
-          show(serverStatusContent);
-          serverStatusBadge.textContent = '离线';
-          serverStatusBadge.className = 'px-2 py-0.5 text-xs font-semibold rounded-full bg-red-900 text-red-300';
-          playerCountDisplay.textContent = '?';
-          serverTimeDisplay.textContent = '--';
+          statusDot.innerHTML = '<span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>';
+          statusText.textContent = '离线';
+          statusText.className = 'text-sm text-red-400 hidden sm:inline';
+          serverBadge.textContent = '离线';
+          serverBadge.className = 'px-2 py-0.5 text-xs font-semibold rounded-full bg-red-900 text-red-300';
         }
-        updateRefreshTime();
       }
 
-      async function fetchPlayers() {
-        hideAll(playersError, playersEmpty, playersList);
-        show(playersLoading);
+      // 玩家列表
+      async function refreshPlayers() {
+        playersLoading.classList.remove('hidden');
+        playersError.classList.add('hidden');
+        playersEmpty.classList.add('hidden');
+        playersList.classList.add('hidden');
         const data = await API.players();
-        hide(playersLoading);
-
+        playersLoading.classList.add('hidden');
         if (!data || !Array.isArray(data.players)) {
-          show(playersError);
-          playersErrorMsg.textContent = '无法获取玩家列表或格式错误';
+          playersError.classList.remove('hidden');
           onlineCountBadge.textContent = '0';
-          playerCountDisplay.textContent = '0/--';
-          playersFooter.textContent = '';
-          console.warn('玩家列表数据无效:', data);
+          playerCountEl.textContent = '0';
+          LOG('players data invalid', data);
           return;
         }
-
         const players = data.players;
-        const count = players.length;
-        onlineCountBadge.textContent = count;
-        playerCountDisplay.textContent = `${count} 在线`;
-        playersFooter.textContent = `共 ${count} 名玩家`;
-        console.log(`获取到 ${count} 名玩家`);
-
-        if (count === 0) {
-          show(playersEmpty);
-          hide(playersList);
+        LOG('players loaded', players.length);
+        onlineCountBadge.textContent = players.length;
+        playerCountEl.textContent = players.length;
+        if (players.length === 0) {
+          playersEmpty.classList.remove('hidden');
           return;
         }
-
-        hide(playersEmpty);
-        show(playersList);
+        playersList.classList.remove('hidden');
         playersList.innerHTML = '';
-        players.forEach(p => {
+        for (const p of players) {
           const li = document.createElement('li');
-          li.className = 'flex items-center justify-between p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition cursor-pointer group';
+          li.className = 'flex items-center justify-between p-2 rounded bg-gray-800/50 hover:bg-gray-800 group';
           li.innerHTML = `
             <div class="flex items-center gap-3 min-w-0">
-              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                ${escapeHtml(p.name).charAt(0).toUpperCase()}
-              </div>
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-200 truncate">${escapeHtml(p.name)}</p>
-                <p class="text-xs text-gray-500 truncate">${escapeHtml(p.uuid.substring(0, 8))}...</p>
-              </div>
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">${p.name[0].toUpperCase()}</div>
+              <span class="text-sm truncate">${escapeHtml(p.name)}</span>
             </div>
-            <button class="text-xs bg-gray-700/60 hover:bg-amber-600 text-gray-300 hover:text-white px-2 py-1 rounded transition opacity-0 group-hover:opacity-100 flex-shrink-0" data-player="${escapeHtml(p.name)}" title="查看方块日志">
-              日志
-            </button>
-          `;
-          const logBtn = li.querySelector('button');
-          logBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const playerName = logBtn.dataset.player;
-            if (playerName) {
-              logInput.value = playerName;
-              searchPlayerLogs(playerName);
-            }
+            <div class="flex gap-1 opacity-0 group-hover:opacity-100">
+              <button class="text-xs bg-gray-600 hover:bg-emerald-600 text-white px-2 py-0.5 rounded status-btn">状态</button>
+              <button class="text-xs bg-gray-600 hover:bg-amber-600 text-white px-2 py-0.5 rounded log-btn">日志</button>
+              <button class="text-xs bg-gray-600 hover:bg-red-600 text-white px-2 py-0.5 rounded death-btn">死亡</button>
+            </div>`;
+          li.querySelector('.status-btn').addEventListener('click', () => showPlayerStatus(p.name));
+          li.querySelector('.log-btn').addEventListener('click', () => {
+            logPlayerInput.value = p.name;
+            searchBlockLogs(p.name);
           });
-          li.addEventListener('click', () => {
-            logInput.value = p.name;
-            searchPlayerLogs(p.name);
+          li.querySelector('.death-btn').addEventListener('click', () => {
+            deathPlayerInput.value = p.name;
+            searchDeathLogs(p.name);
           });
           playersList.appendChild(li);
-        });
-      }
-
-      function escapeHtml(text) {
-        return String(text).replace(/[&<>"']/g, function(m) {
-          return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m];
-        });
-      }
-
-      async function searchPlayerLogs(playerId, loadMore = false) {
-        if (!playerId) return;
-
-        if (!loadMore) {
-          currentLogPlayer = playerId;
-          currentLogCursor = null;
-          hideAll(logInitial, logError, logEmpty, logContent);
-          show(logLoading);
-          console.log(`查询玩家日志: ${playerId}`);
-        } else {
-          logLoadMoreBtn.disabled = true;
-          logLoadMoreBtn.textContent = '加载中...';
-          console.log(`加载更多日志，游标: ${currentLogCursor}`);
         }
+      }
 
+      // 状态弹窗
+      async function showPlayerStatus(name) {
+        statusModal.classList.remove('hidden');
+        modalPlayerName.textContent = name;
+        modalContent.innerHTML = '<div class="animate-pulse text-gray-400">加载中...</div>';
+        try {
+          const data = await API.playerStatus(name);
+          if (data.error) throw new Error(data.error);
+          LOG('status data for', name, data);
+          const dims = ['主世界','下界','末地'];
+          const gamemodes = ['生存','创造','冒险','','','旁观'];
+          const effHtml = (data.effects || []).map(e => `<span class="bg-gray-700 px-2 py-0.5 rounded text-xs">ID:${e.id} 等级:${e.amplifier} 剩余:${(e.duration/20).toFixed(1)}s</span>`).join('');
+          modalContent.innerHTML = `
+            <div class="grid grid-cols-2 gap-2">
+              <div><span class="text-gray-400">生命：</span>${data.health}/${data.max_health}</div>
+              <div><span class="text-gray-400">饥饿：</span>${data.hunger.toFixed(1)}</div>
+              <div><span class="text-gray-400">饱和度：</span>${data.saturation.toFixed(1)}</div>
+              <div><span class="text-gray-400">经验：</span>${data.experience.toFixed(2)} (等级 ${data.level})</div>
+              <div><span class="text-gray-400">维度：</span>${dims[data.dimension] || data.dimension}</div>
+              <div><span class="text-gray-400">坐标：</span>${data.position.map(v=>v.toFixed(1)).join(', ')}</div>
+              <div><span class="text-gray-400">模式：</span>${gamemodes[data.gamemode] || data.gamemode}</div>
+            </div>
+            <div class="mt-3"><span class="text-gray-400">药水效果：</span><div class="flex flex-wrap gap-1 mt-1">${effHtml || '无'}</div></div>`;
+        } catch(e) {
+          modalContent.innerHTML = `<span class="text-red-400">加载失败：${e.message}</span>`;
+          ERR('failed to get status for', name, e);
+        }
+      }
+      document.getElementById('close-modal').addEventListener('click', () => statusModal.classList.add('hidden'));
+
+      // 方块日志
+      let blockCursor = null, currentBlockPlayer = null;
+      async function searchBlockLogs(name, loadMore=false) {
+        if (!loadMore) {
+          currentBlockPlayer = name; blockCursor = null;
+          logInitial.classList.add('hidden'); logError.classList.add('hidden'); logEmpty.classList.add('hidden'); logContent.classList.add('hidden');
+          logLoading.classList.remove('hidden');
+        }
         try {
           const limit = 20;
-          const before = loadMore ? currentLogCursor : 0;
-          const data = await API.playerActions(playerId, limit, before);
-          console.log('日志响应:', data);
-
-          if (!loadMore) {
-            hide(logLoading);
-            show(logContent);
-            logPlayerName.textContent = `玩家: ${data.player || playerId}`;
-            logTableBody.innerHTML = '';
-          }
-
-          if (data.actions && data.actions.length > 0) {
-            data.actions.forEach(action => {
-              const row = document.createElement('tr');
-              row.className = 'log-line bg-gray-850/30';
-              let actionText = action.action;
-              let actionColor = 'text-gray-300';
-              if (action.action === 'break') { actionText = '破坏'; actionColor = 'text-red-400'; }
-              else if (action.action === 'place') { actionText = '放置'; actionColor = 'text-green-400'; }
-              else if (action.action === 'interact') { actionText = '交互'; actionColor = 'text-blue-400'; }
-
-              row.innerHTML = `
-                <td class="px-3 py-2 ${actionColor} font-medium">${actionText}</td>
-                <td class="px-3 py-2 font-mono text-xs">${escapeHtml(action.block)}</td>
-                <td class="px-3 py-2 font-mono text-xs text-gray-400">${escapeHtml(action.tool)}</td>
-                <td class="px-3 py-2 tabular-nums">${action.count}</td>
-                <td class="px-3 py-2 font-mono text-xs text-gray-400">${(action.last_pos || []).join(', ')}</td>
-                <td class="px-3 py-2 text-xs text-gray-400" title="${formatTime(action.last_time)}">${timeAgo(action.last_time)}</td>
-              `;
-              logTableBody.appendChild(row);
-            });
-          } else {
-            if (!loadMore) {
-              hide(logContent);
-              show(logEmpty);
-            }
-          }
-
+          const data = await API.playerActions(name, limit, blockCursor || 0);
+          logLoading.classList.add('hidden');
+          logContent.classList.remove('hidden');
+          const tbody = logTableBody;
+          if (!loadMore) tbody.innerHTML = '';
+          data.actions.forEach(a => {
+            const row = document.createElement('tr');
+            row.className = 'log-line';
+            row.innerHTML = `<td class="px-3 py-2">${a.action}</td><td class="px-3 py-2 font-mono text-xs">${a.block}</td><td class="px-3 py-2 font-mono text-xs">${a.tool}</td><td class="px-3 py-2">${a.count}</td><td class="px-3 py-2 text-xs">${(a.last_pos||[]).join(',')}</td><td class="px-3 py-2 text-xs">${new Date(a.last_time).toLocaleString()}</td>`;
+            tbody.appendChild(row);
+          });
           if (data.next_cursor) {
-            currentLogCursor = data.next_cursor;
+            blockCursor = data.next_cursor;
             logLoadMoreBtn.classList.remove('hidden');
-            logLoadMoreBtn.disabled = false;
-            logLoadMoreBtn.textContent = '加载更多';
-            logCursorInfo.textContent = `游标: ${data.next_cursor}`;
           } else {
-            currentLogCursor = null;
             logLoadMoreBtn.classList.add('hidden');
-            logCursorInfo.textContent = '已加载全部记录';
           }
-
-          const rowCount = logTableBody.children.length;
-          logTotalHint.textContent = `已显示 ${rowCount} 条记录`;
-
-        } catch (err) {
-          console.error('查询日志出错:', err);
-          if (!loadMore) {
-            hide(logLoading);
-            show(logError);
-            if (err.message.includes('404')) {
-              logErrorMsg.textContent = '未找到该玩家，请检查名称或UUID';
-            } else {
-              logErrorMsg.textContent = `查询失败: ${err.message}`;
-            }
-          } else {
-            logLoadMoreBtn.disabled = false;
-            logLoadMoreBtn.textContent = '重试';
-            alert('加载更多失败，请稍后重试');
-          }
-        } finally {
-          if (loadMore) {
-            logLoadMoreBtn.disabled = false;
-            logLoadMoreBtn.textContent = '加载更多';
-          }
+        } catch(e) {
+          logLoading.classList.add('hidden');
+          logError.classList.remove('hidden');
+          ERR('block logs error', e);
         }
       }
-
-      function clearLogs() {
-        currentLogPlayer = null;
-        currentLogCursor = null;
-        logInput.value = '';
-        hideAll(logContent, logError, logEmpty, logLoading);
-        show(logInitial);
-        logTableBody.innerHTML = '';
-      }
-
-      $('#refresh-btn').addEventListener('click', () => {
-        fetchServerStatus();
-        fetchPlayers();
-      });
-
       logSearchBtn.addEventListener('click', () => {
-        const name = logInput.value.trim();
-        if (!name) {
-          alert('请输入玩家名或UUID');
-          return;
-        }
-        searchPlayerLogs(name);
+        const name = logPlayerInput.value.trim();
+        if(!name) return;
+        searchBlockLogs(name);
+      });
+      logLoadMoreBtn.addEventListener('click', () => searchBlockLogs(currentBlockPlayer, true));
+      logClearBtn.addEventListener('click', () => {
+        logPlayerInput.value = '';
+        logInitial.classList.remove('hidden'); logContent.classList.add('hidden'); logError.classList.add('hidden'); logLoading.classList.add('hidden');
       });
 
-      logInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          logSearchBtn.click();
+      // 死亡记录
+      let deathCursor = null, currentDeathPlayer = null;
+      async function searchDeathLogs(name, loadMore=false) {
+        if (!loadMore) {
+          currentDeathPlayer = name; deathCursor = null;
+          deathInitial.classList.add('hidden'); deathError.classList.add('hidden'); deathEmpty.classList.add('hidden'); deathContent.classList.add('hidden');
+          deathLoading.classList.remove('hidden');
         }
+        try {
+          const limit = 20;
+          const data = await API.playerDeaths(name, limit, deathCursor || 0);
+          deathLoading.classList.add('hidden');
+          deathContent.classList.remove('hidden');
+          const tbody = deathTableBody;
+          if (!loadMore) tbody.innerHTML = '';
+          data.deaths.forEach(d => {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td class="px-3 py-2 text-xs">${new Date(d.time).toLocaleString()}</td><td class="px-3 py-2">${['主世界','下界','末地'][d.dimension]||d.dimension}</td><td class="px-3 py-2 font-mono text-xs">${d.position.join(', ')}</td><td class="px-3 py-2">${d.cause}</td><td class="px-3 py-2">${d.attacker||'--'}</td>`;
+            tbody.appendChild(row);
+          });
+          if (data.next_cursor) {
+            deathCursor = data.next_cursor;
+            deathLoadMoreBtn.classList.remove('hidden');
+          } else {
+            deathLoadMoreBtn.classList.add('hidden');
+          }
+        } catch(e) {
+          deathLoading.classList.add('hidden');
+          deathError.classList.remove('hidden');
+          ERR('death logs error', e);
+        }
+      }
+      deathSearchBtn.addEventListener('click', () => {
+        const name = deathPlayerInput.value.trim();
+        if(!name) return;
+        searchDeathLogs(name);
+      });
+      deathLoadMoreBtn.addEventListener('click', () => searchDeathLogs(currentDeathPlayer, true));
+      deathClearBtn.addEventListener('click', () => {
+        deathPlayerInput.value = '';
+        deathInitial.classList.remove('hidden'); deathContent.classList.add('hidden'); deathError.classList.add('hidden'); deathLoading.classList.add('hidden');
       });
 
-      logClearBtn.addEventListener('click', clearLogs);
-
-      logLoadMoreBtn.addEventListener('click', () => {
-        if (currentLogPlayer && currentLogCursor) {
-          searchPlayerLogs(currentLogPlayer, true);
-        }
-      });
-
-      fetchServerStatus();
-      fetchPlayers();
-
-      setInterval(() => {
-        fetchServerStatus();
-        fetchPlayers();
-      }, 30000);
-
+      // 初始化
+      refreshStatus();
+      refreshPlayers();
+      document.getElementById('refresh-btn').addEventListener('click', () => { refreshStatus(); refreshPlayers(); });
+      setInterval(() => { refreshStatus(); refreshPlayers(); }, 30000);
     })();
   </script>
 </body>
