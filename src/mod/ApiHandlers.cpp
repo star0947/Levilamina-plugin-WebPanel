@@ -102,8 +102,54 @@ void ApiHandlers::getPlayerActions(const httplib::Request& req, httplib::Respons
     if (!history.empty()) {
         result["next_cursor"] = history.back().lastTime;
     }
-    getApiLogger().info("Block actions for {}: {} records returned", id, history.size());
+    getApiLogger().info("Block actions for {}: {} records", id, history.size());
     res.set_content(result.dump(), "application/json");
+}
+
+// 安全读取玩家状态：在主线程中构建快照
+static nlohmann::json buildPlayerStatusSnapshot(Player& player) {
+    nlohmann::json status;
+    status["name"]       = player.getRealName();
+    status["uuid"]       = player.getUuid().asString();
+    status["health"]     = player.getHealth();
+    status["max_health"] = player.getMaxHealth();
+
+    // 属性
+    auto hunger = player.getAttribute(Player::HUNGER());
+    status["hunger"] = (hunger.mPtr) ? hunger.mPtr->mCurrentValue : 0.0f;
+    
+    auto sat = player.getAttribute(Player::SATURATION());
+    status["saturation"] = (sat.mPtr) ? sat.mPtr->mCurrentValue : 0.0f;
+
+    auto xp = player.getAttribute(Player::EXPERIENCE());
+    status["experience"] = (xp.mPtr) ? xp.mPtr->mCurrentValue : 0.0f;
+
+    auto lvl = player.getAttribute(Player::LEVEL());
+    status["level"] = (lvl.mPtr) ? static_cast<int>(lvl.mPtr->mCurrentValue) : 0;
+
+    status["dimension"]  = static_cast<int>(player.getDimensionId());
+    auto pos = player.getPosition();
+    status["position"]   = {pos.x, pos.y, pos.z};
+    status["gamemode"]   = static_cast<int>(player.getPlayerGameType());
+
+    // 药水效果
+    auto comp = player.getEntityContext().tryGetComponent<MobEffectsComponent>();
+    auto& effects = status["effects"] = nlohmann::json::array();
+    if (comp) {
+        try {
+            for (auto const& effect : comp->mMobEffects.get()) {
+                effects.push_back({
+                    {"id",        static_cast<int>(effect.mId)},
+                    {"amplifier", effect.mAmplifier},
+                    {"duration",  effect.mDuration.get().mValue}
+                });
+            }
+        } catch(...) {
+            getApiLogger().error("Exception iterating mob effects for player {}", player.getRealName());
+        }
+    }
+
+    return status;
 }
 
 void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response& res) {
@@ -128,67 +174,30 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
                 return;
             }
 
-            Player* foundPlayer = nullptr;
+            // 查找玩家，并在回调中立即构建快照
+            nlohmann::json snapshot;
+            bool found = false;
             level->forEachPlayer([&](Player& p) {
                 if (p.getRealName() == id || p.getUuid().asString() == id) {
-                    foundPlayer = &p;
+                    snapshot = buildPlayerStatusSnapshot(p);
+                    found = true;
                     return false;
                 }
                 return true;
             });
 
-            if (!foundPlayer) {
+            if (!found) {
                 getApiLogger().warn("Player '{}' not found in status query", id);
                 promise.set_value(status.dump());
                 return;
             }
 
-            Player& player = *foundPlayer;
-            status.clear();
-            status["name"]       = player.getRealName();
-            status["uuid"]       = player.getUuid().asString();
-            status["health"]     = player.getHealth();
-            status["max_health"] = player.getMaxHealth();
+            getApiLogger().info("Status for {}: health={}/{} pos=({},{},{})",
+                snapshot["name"].get<std::string>(),
+                snapshot["health"], snapshot["max_health"],
+                snapshot["position"][0], snapshot["position"][1], snapshot["position"][2]);
 
-            // 安全读取属性，增加空指针检查
-            auto hungerAttr = player.getAttribute(Player::HUNGER());
-            status["hunger"] = (hungerAttr.mPtr) ? hungerAttr.mPtr->mCurrentValue : 0.0f;
-            
-            auto satAttr = player.getAttribute(Player::SATURATION());
-            status["saturation"] = (satAttr.mPtr) ? satAttr.mPtr->mCurrentValue : 0.0f;
-
-            auto xpAttr = player.getAttribute(Player::EXPERIENCE());
-            status["experience"] = (xpAttr.mPtr) ? xpAttr.mPtr->mCurrentValue : 0.0f;
-
-            auto levelAttr = player.getAttribute(Player::LEVEL());
-            status["level"] = (levelAttr.mPtr) ? static_cast<int>(levelAttr.mPtr->mCurrentValue) : 0;
-
-            status["dimension"]  = static_cast<int>(player.getDimensionId());
-            auto pos = player.getPosition();
-            status["position"]   = {pos.x, pos.y, pos.z};
-            status["gamemode"]   = static_cast<int>(player.getPlayerGameType());
-
-            // 药水效果
-            auto comp = player.getEntityContext().tryGetComponent<MobEffectsComponent>();
-            auto& effects = status["effects"] = nlohmann::json::array();
-            if (comp) {
-                try {
-                    for (auto const& effect : comp->mMobEffects.get()) {
-                        effects.push_back({
-                            {"id",        static_cast<int>(effect.mId)},
-                            {"amplifier", effect.mAmplifier},
-                            {"duration",  effect.mDuration.get().mValue}
-                        });
-                    }
-                } catch(...) {
-                    getApiLogger().error("Exception iterating mob effects for player {}", player.getRealName());
-                }
-            }
-
-            getApiLogger().info("Status for {}: health={}/{} pos=({:.1f},{:.1f},{:.1f})", 
-                player.getRealName(), status["health"], status["max_health"], pos.x, pos.y, pos.z);
-            promise.set_value(status.dump());
-
+            promise.set_value(snapshot.dump());
         } catch(const std::exception& e) {
             getApiLogger().error("Exception in getPlayerStatus: {}", e.what());
             status.clear();
