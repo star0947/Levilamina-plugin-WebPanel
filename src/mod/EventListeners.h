@@ -13,4 +13,5 @@ private:
     ll::event::ListenerPtr disconnectListener_;
     ll::event::ListenerPtr placedListener_;
     ll::event::ListenerPtr interactListener_;
+    // 方块破坏使用原始 Hook，不通过 EventBus
 };

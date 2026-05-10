@@ -4,6 +4,7 @@
 #include "ll/api/event/player/PlayerPlaceBlockEvent.h"
 #include "ll/api/event/player/PlayerInteractBlockEvent.h"
 #include "ll/api/memory/Hook.h"
+#include "ll/api/memory/Memory.h"
 #include "ll/api/io/Logger.h"
 #include "ll/api/mod/NativeMod.h"
 
@@ -26,26 +27,41 @@
 // 全局 LogManager 指针
 extern std::atomic<LogManager*> g_logManagerForHook;
 
-// === 方块破坏 Hook（LL_TYPE_INSTANCE_HOOK + 哑元构造函数） ===
-LL_TYPE_INSTANCE_HOOK(
-    DestroyBlockHook,
-    ll::memory::HookPriority::Normal,
-    GameMode,
-    &GameMode::_sendTryDestroyBlockEvent,
-    ::std::optional<::ItemStack>,
-    ::Block const&    block,
-    ::BlockPos const& pos,
-    ::ItemStack       itemBeforeEvent
-) {
-    // mPlayer 是 GameMode 的公共成员，TypedStorage<8,8,Player&> 直接等于 Player&
-    Player& player = mPlayer;
+static ll::io::Logger& getLogger() {
+    return ll::mod::NativeMod::current()->getLogger();
+}
+
+// ===== 原始 Hook：破坏方块 =====
+// 代理类，不继承 GameMode，避免构造函数问题
+struct GameModeHookProxy {
+    GameModeHookProxy() = delete;
+
+    // 函数签名与 GameMode::_sendTryDestroyBlockEvent 完全一致
+    std::optional<ItemStack> detour(
+        Block const&    block,
+        BlockPos const& pos,
+        ItemStack       itemBeforeEvent
+    ) const;
+};
+
+// 保存原始函数的跳板地址
+static ll::memory::FuncPtr s_origBreakFunc = nullptr;
+
+std::optional<ItemStack> GameModeHookProxy::detour(
+    Block const&    block,
+    BlockPos const& pos,
+    ItemStack       itemBeforeEvent
+) const {
+    // 在运行时，this 实际是 const GameMode*
+    const GameMode* gm     = reinterpret_cast<const GameMode*>(this);
+    Player&         player = gm->mPlayer;   // TypedStorage<8,8,Player&> == Player&
 
     if (auto* lm = g_logManagerForHook.load()) {
         try {
             ItemStack const& tool = player.getSelectedItem();
 
             AggregatedBlockAction act;
-            act.blockType = block.getTypeName();      // 真正的被破坏方块名
+            act.blockType = block.getTypeName();     // 真正的被破坏方块名
             act.toolType  = ((bool)tool) ? tool.getTypeName() : "minecraft:empty";
             act.action    = "break";
             act.count     = 1;
@@ -60,13 +76,15 @@ LL_TYPE_INSTANCE_HOOK(
         } catch (...) {}
     }
 
-    return origin(block, pos, itemBeforeEvent);
+    // 调用原始函数，需要把s_origPtr还原成成员函数指针
+    using OrigFn = std::optional<ItemStack> (GameModeHookProxy::*)(
+        Block const&, BlockPos const&, ItemStack) const;
+    OrigFn orig;
+    std::memcpy(&orig, &s_origBreakFunc, sizeof(orig));
+    return (this->*orig)(block, pos, itemBeforeEvent);
 }
 
-static ll::io::Logger& getLogger() {
-    return ll::mod::NativeMod::current()->getLogger();
-}
-
+// ===== 普通事件监听 =====
 void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     // 玩家加入
     joinListener_ = bus.emplaceListener<ll::event::PlayerJoinEvent>(
@@ -130,8 +148,10 @@ void EventListeners::registerAll(ll::event::EventBus& bus, LogManager& lm) {
     );
     if (!interactListener_) getLogger().error("Failed to register PlayerInteractBlockEvent");
 
-    // 启用方块破坏 Hook
-    DestroyBlockHook::hook();
+    // 原始 Hook：安装方块破坏 Hook
+    ll::memory::FuncPtr target = ll::memory::toFuncPtr(&GameMode::_sendTryDestroyBlockEvent);
+    ll::memory::FuncPtr detour = ll::memory::toFuncPtr(&GameModeHookProxy::detour);
+    ll::memory::hook(target, detour, &s_origBreakFunc, ll::memory::HookPriority::Normal);
     getLogger().info("All event listeners and hooks registered successfully");
 }
 
@@ -146,6 +166,8 @@ void EventListeners::unregisterAll(ll::event::EventBus& bus) {
     placedListener_.reset();
     interactListener_.reset();
 
-    // 禁用方块破坏 Hook
-    DestroyBlockHook::unhook();
+    // 卸载方块破坏 Hook
+    ll::memory::FuncPtr target = ll::memory::toFuncPtr(&GameMode::_sendTryDestroyBlockEvent);
+    ll::memory::FuncPtr detour = ll::memory::toFuncPtr(&GameModeHookProxy::detour);
+    ll::memory::unhook(target, detour);
 }
