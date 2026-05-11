@@ -14,7 +14,6 @@
 #include "ll/api/mod/NativeMod.h"
 #include <future>
 #include <string>
-#include <sstream>
 
 static ll::io::Logger& getApiLogger() {
     return ll::mod::NativeMod::current()->getLogger();
@@ -106,7 +105,7 @@ void ApiHandlers::getPlayerActions(const httplib::Request& req, httplib::Respons
     res.set_content(result.dump(), "application/json");
 }
 
-// 安全读取玩家状态：在主线程中构建快照
+// 在主线程中构建玩家状态快照，避免外部持有 Player&
 static nlohmann::json buildPlayerStatusSnapshot(Player& player) {
     nlohmann::json status;
     status["name"]       = player.getRealName();
@@ -114,7 +113,6 @@ static nlohmann::json buildPlayerStatusSnapshot(Player& player) {
     status["health"]     = player.getHealth();
     status["max_health"] = player.getMaxHealth();
 
-    // 属性
     auto hunger = player.getAttribute(Player::HUNGER());
     status["hunger"] = (hunger.mPtr) ? hunger.mPtr->mCurrentValue : 0.0f;
     
@@ -132,7 +130,6 @@ static nlohmann::json buildPlayerStatusSnapshot(Player& player) {
     status["position"]   = {pos.x, pos.y, pos.z};
     status["gamemode"]   = static_cast<int>(player.getPlayerGameType());
 
-    // 药水效果
     auto comp = player.getEntityContext().tryGetComponent<MobEffectsComponent>();
     auto& effects = status["effects"] = nlohmann::json::array();
     if (comp) {
@@ -174,7 +171,6 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
                 return;
             }
 
-            // 查找玩家，并在回调中立即构建快照
             nlohmann::json snapshot;
             bool found = false;
             level->forEachPlayer([&](Player& p) {
@@ -192,10 +188,16 @@ void ApiHandlers::getPlayerStatus(const httplib::Request& req, httplib::Response
                 return;
             }
 
-            getApiLogger().info("Status for {}: health={}/{} pos=({},{},{})",
-                snapshot["name"].get<std::string>(),
-                snapshot["health"], snapshot["max_health"],
-                snapshot["position"][0], snapshot["position"][1], snapshot["position"][2]);
+            // 日志中只使用基础类型，避免 fmt 格式化 json 对象
+            std::string name      = snapshot["name"].get<std::string>();
+            int         health    = snapshot["health"].get<int>();
+            int         maxHealth = snapshot["max_health"].get<int>();
+            float       posX      = snapshot["position"][0].get<float>();
+            float       posY      = snapshot["position"][1].get<float>();
+            float       posZ      = snapshot["position"][2].get<float>();
+
+            getApiLogger().info("Status for {}: health={}/{} pos=({:.1f},{:.1f},{:.1f})",
+                                name, health, maxHealth, posX, posY, posZ);
 
             promise.set_value(snapshot.dump());
         } catch(const std::exception& e) {
