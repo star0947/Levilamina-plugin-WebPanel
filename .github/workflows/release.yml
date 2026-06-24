@@ -33,7 +33,7 @@ jobs:
           Compress-Archive -Path artifact/* -DestinationPath WebPanel-${{ matrix.target_type }}-windows-x64.zip
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: WebPanel-${{ matrix.target_type }}-windows-x64.zip
         env:
